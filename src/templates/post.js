@@ -23,9 +23,11 @@ ${post.tags.map((t) => `        <li>${escapeHtml(t)}</li>`).join("\n")}
     ? `ई बतकही Instagram पर भी देखीं: ${escapeHtml(config.instagramHandle)}`
     : `छोट-छोट बतकही Instagram पर भी: ${escapeHtml(config.instagramHandle)}`;
 
-  // Native <details> works without JS (open by default); main.js collapses it
-  // below 75em and forces it open at >= 75em, where the summary is hidden and
-  // the plain p.toc-title is shown instead so the rail cannot be collapsed.
+  // Native <details> works without JS (open by default). The inline script right
+  // after it collapses it below 75em during parsing (before first paint, so the
+  // body never shifts); main.js keeps it in sync and forces it open at >= 75em,
+  // where the summary is hidden and the plain p.toc-title is shown instead so
+  // the rail cannot be collapsed.
   const toc = post.toc.length >= 2
     ? `<details class="toc-wrap" open>
     <summary class="toc-title eyebrow">एह बतकही में</summary>
@@ -36,7 +38,8 @@ ${post.toc.map((t) => `        <li><a href="#${t.id}">${t.text}</a></li>`).join(
         <li><a href="#in-english-heading" lang="en">In English</a></li>
       </ol>
     </nav>
-  </details>`
+  </details>
+  <script>if(!matchMedia("(min-width: 75em)").matches)document.querySelector(".toc-wrap").open=false;</script>`
     : "";
 
   const relatedSection = related.length

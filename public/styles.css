@@ -92,8 +92,19 @@
   --measure: 72ch;
   --gutter: clamp(16px, 4vw, 96px);
   --control: 44px;
-  --header-h: 7rem;
+  /* Header height = padding-block (2 x 0.625rem) + 44px rows + 1px rule:
+     two rows below 48em, one row above. Exact in CSS so main.js's measured
+     value is a no-op refinement (no layout shift when the script lands late). */
+  --header-h: calc(1.25rem + 89px);
   --space-section: 4rem;
+}
+
+/* Registered so the computed value resolves to px (main.js compares it with
+   the measured header before writing). */
+@property --header-h {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
 }
 
 :root[data-theme="dark"] {
@@ -109,9 +120,16 @@
   --scrim: rgba(0, 0, 0, 0.6);
 }
 
+/* Below ~384px the masthead wraps to two lines (51px row). */
+@media (max-width: 24em) {
+  :root {
+    --header-h: calc(1.25rem + 96px);
+  }
+}
+
 @media (min-width: 48em) {
   :root {
-    --header-h: 4.75rem;
+    --header-h: calc(1.25rem + 45px);
     --space-section: 6rem;
   }
 }
@@ -422,8 +440,13 @@ p {
     row-gap: 0;
   }
 
+  /* Basis 0 so the masthead shares row one with the tools and wraps its own
+     Devanagari line under "AI Batkahi" at 320px instead of pushing the tools
+     onto a third row. */
   .masthead {
     order: 1;
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .tools {
@@ -575,7 +598,8 @@ p {
 /* ---------- Hero (home) ----------
    Full viewport up to a 960px cap (px on purpose so it does not grow with the
    fluid root): at 1440x900 the hero fills the fold, at 2560x1440 the first list
-   row sits above it. --header-h is overwritten by main.js from the real header. */
+   row sits above it. main.js overwrites --header-h only when the measured
+   header differs from the CSS value. */
 .hero {
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -820,11 +844,12 @@ p {
   margin: 0;
 }
 
-/* Inline-block with negative margins: 44px+ hit height without moving the text. */
+/* Inline-block with negative margins: 40px+ hit height without moving the text
+   (0.3em keeps the --fs-h3 card titles above 40px at the 17px root). */
 .post-item-title a {
   display: inline-block;
-  padding-block: 0.2em;
-  margin-block: -0.2em;
+  padding-block: 0.3em;
+  margin-block: -0.3em;
   color: var(--ink);
   text-decoration: underline;
   text-decoration-color: transparent;
@@ -1595,6 +1620,13 @@ main.post-wrap {
   max-width: var(--measure);
 }
 
+/* Inline links in the aside: same padding trick as the cards, 40px+ hit height. */
+.about-side p a {
+  display: inline-block;
+  padding-block: 0.45em;
+  margin-block: -0.45em;
+}
+
 .pillars {
   margin: 0 0 1.5em;
 }
@@ -1615,6 +1647,9 @@ main.post-wrap {
 }
 
 .pillar dt a {
+  display: inline-block;
+  padding-block: 0.3em;
+  margin-block: -0.3em;
   color: var(--ink);
   text-decoration: none;
 }
