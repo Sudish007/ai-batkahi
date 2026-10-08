@@ -5,7 +5,7 @@
   "description": "AI Batkahi — AI, machine learning and data science explained in Bhojpuri. Static blog for @batkahi.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.2"
   },
   "scripts": {
     "build": "node src/build.js",

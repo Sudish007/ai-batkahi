@@ -5,15 +5,20 @@ import { url } from "./urls.js";
 
 // Heading ids: Latin slug when the text has Latin characters, otherwise a
 // stable positional id (Devanagari headings produce an empty Latin slug).
+// Ids are unique per render: repeats get -2, -3, … suffixes.
 function makeRenderer() {
   let count = 0;
+  const used = new Set();
   return {
     heading({ tokens, depth }) {
       const text = this.parser.parseInline(tokens);
       const plain = text.replace(/<[^>]+>/g, "");
       count += 1;
       const latin = slugify(plain);
-      const id = latin !== "" ? latin : `section-${count}`;
+      const base = latin !== "" ? latin : `section-${count}`;
+      let id = base;
+      for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
+      used.add(id);
       return `<h${depth} id="${id}">${text}</h${depth}>\n`;
     },
     link({ href, title, tokens }) {

@@ -4,7 +4,7 @@ title_en: What is machine learning?
 date: 2026-10-08
 category: samajh
 tags: [machine learning, डेटा, मॉडल, ट्रेनिंग]
-summary: एगो पुरान किसान जइसे बादर आ हवा देख के बरखा के अंदाज लगावेला, ओही तरह मशीन पुरान डेटा से पैटर्न सीख के अनुमान लगावेले। एही के नाम बा मशीन लर्निंग।
+summary: एगो पुरान किसान जइसे बादर आ हवा देख के बरखा के अंदाज लगावेला, ओही तरह मशीन पुरान डेटा से पैटर्न सीख के अनुमान लगावेला। एही के नाम बा मशीन लर्निंग।
 summary_en: Machine learning explained through a farmer who predicts rain from years of experience. Experience is data, the habit of predicting is the model, and training versus testing is how we check whether the machine actually learned.
 instagram:
 ---

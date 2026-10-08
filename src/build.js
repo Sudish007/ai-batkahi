@@ -1,14 +1,13 @@
 // AI Batkahi build: Markdown + templates -> dist/. Run with `npm run build`.
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import config from "../site.config.js";
 import categories from "../content/categories.js";
-import { parse } from "./lib/frontmatter.js";
-import { slugFromFilename } from "./lib/slugify.js";
-import { countWords, readingMinutes } from "./lib/reading-time.js";
-import { renderMarkdown, splitInEnglish } from "./lib/markdown.js";
+import { loadPosts, activeCategories as pickActive, categoryCounts, relatedPosts } from "./lib/posts.js";
+import { searchIndex } from "./lib/search-index.js";
+import { FONT_FILES } from "./lib/fonts.js";
 import { atomFeed, sitemap, robots } from "./feeds.js";
 import { homePage } from "./templates/home.js";
 import { postsIndexPage } from "./templates/posts-index.js";
@@ -22,17 +21,12 @@ const DIST = join(ROOT, "dist");
 const PUBLIC = join(ROOT, "public");
 const POSTS_DIR = join(ROOT, "content", "posts");
 
-// Exact font files copied into dist/fonts (devanagari + latin subsets only).
-const FONT_FILES = [
-  ["@fontsource/tiro-devanagari-hindi", "tiro-devanagari-hindi-devanagari-400-normal.woff2"],
-  ["@fontsource/tiro-devanagari-hindi", "tiro-devanagari-hindi-latin-400-normal.woff2"],
-  ["@fontsource/noto-sans-devanagari", "noto-sans-devanagari-devanagari-400-normal.woff2"],
-  ["@fontsource/noto-sans-devanagari", "noto-sans-devanagari-devanagari-700-normal.woff2"],
-  ["@fontsource/noto-sans-devanagari", "noto-sans-devanagari-latin-400-normal.woff2"],
-  ["@fontsource/noto-sans-devanagari", "noto-sans-devanagari-latin-700-normal.woff2"],
-];
-
-const REQUIRED_KEYS = ["title", "title_en", "date", "category", "tags", "summary", "summary_en"];
+// Size budgets (bytes). The build fails on any violation.
+const KB = 1024;
+const BUDGET_CSS = 60 * KB;
+const BUDGET_JS = 60 * KB;
+const BUDGET_PAGE = 150 * KB; // one HTML page + styles.css + main.js
+const BUDGET_FONTS = 500 * KB; // sum of dist/fonts/*
 
 function write(relPath, content) {
   const out = join(DIST, relPath);
@@ -40,60 +34,6 @@ function write(relPath, content) {
   writeFileSync(out, content, "utf8");
   const bytes = Buffer.byteLength(content, "utf8");
   console.log(`  ${relPath.padEnd(48)} ${String(bytes).padStart(7)} B`);
-}
-
-function loadPosts() {
-  const byCategory = new Map(categories.map((c) => [c.slug, c]));
-  const files = readdirSync(POSTS_DIR).filter((f) => f.endsWith(".md")).sort();
-  const posts = files.map((file) => {
-    const raw = readFileSync(join(POSTS_DIR, file), "utf8");
-    const { data, body: fullBody } = parse(raw);
-    for (const key of REQUIRED_KEYS) {
-      if (data[key] === undefined || data[key] === "") {
-        throw new Error(`${file}: missing front-matter key "${key}"`);
-      }
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
-      throw new Error(`${file}: date must be YYYY-MM-DD`);
-    }
-    const category = byCategory.get(data.category);
-    if (!category) {
-      throw new Error(`${file}: unknown category "${data.category}"`);
-    }
-    if (!Array.isArray(data.tags)) {
-      throw new Error(`${file}: tags must be a list`);
-    }
-    const { body, inEnglish } = splitInEnglish(fullBody);
-    if (!inEnglish) {
-      throw new Error(`${file}: missing "## In English" section`);
-    }
-    const words = countWords(fullBody);
-    return {
-      file,
-      slug: slugFromFilename(file),
-      title: data.title,
-      title_en: data.title_en,
-      date: data.date,
-      category,
-      tags: data.tags,
-      summary: data.summary,
-      summary_en: data.summary_en,
-      instagram: data.instagram || "",
-      words,
-      minutes: readingMinutes(words, config.wordsPerMinute),
-      html: renderMarkdown(body),
-      inEnglishHtml: renderMarkdown(inEnglish),
-    };
-  });
-
-  // Newest first; tie-break by filename ascending (01- before 02-).
-  posts.sort((a, b) => (a.date === b.date ? a.file.localeCompare(b.file) : b.date.localeCompare(a.date)));
-  // prev/next follow list (reading) order: previous = item above, next = item below.
-  posts.forEach((p, i) => {
-    p.prev = posts[i - 1] || null;
-    p.next = posts[i + 1] || null;
-  });
-  return posts;
 }
 
 function copyPublic() {
@@ -116,22 +56,56 @@ function copyFonts() {
   console.log(`  fonts/ (${FONT_FILES.length} files)${" ".repeat(27)} ${String(total).padStart(7)} B`);
 }
 
+function walk(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+}
+
+function assertBudgets() {
+  const size = (p) => statSync(p).size;
+  const rel = (p) => relative(DIST, p).replace(/\\/g, "/");
+  const over = (p, bytes, limit) => new Error(`size budget exceeded: ${rel(p)} is ${bytes} B (limit ${limit} B)`);
+
+  const cssPath = join(DIST, "styles.css");
+  const jsPath = join(DIST, "main.js");
+  const css = size(cssPath);
+  const js = size(jsPath);
+  if (css > BUDGET_CSS) throw over(cssPath, css, BUDGET_CSS);
+  if (js > BUDGET_JS) throw over(jsPath, js, BUDGET_JS);
+
+  for (const p of walk(DIST).filter((f) => f.endsWith(".html"))) {
+    const total = size(p) + css + js;
+    if (total > BUDGET_PAGE) throw over(p, total, BUDGET_PAGE);
+  }
+
+  const fontsDir = join(DIST, "fonts");
+  const fonts = walk(fontsDir).reduce((sum, p) => sum + size(p), 0);
+  if (fonts > BUDGET_FONTS) throw over(fontsDir, fonts, BUDGET_FONTS);
+}
+
 function build() {
   const started = Date.now();
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(DIST, { recursive: true });
 
-  const posts = loadPosts();
-  const activeCategories = categories.filter((c) => posts.some((p) => p.category.slug === c.slug));
+  const posts = loadPosts({ dir: POSTS_DIR, categories, wordsPerMinute: config.wordsPerMinute });
+  const activeCategories = pickActive(categories, posts);
 
   console.log(`Building ${posts.length} posts, ${activeCategories.length} active categories -> dist/`);
   copyPublic();
   copyFonts();
 
-  write("index.html", homePage({ posts }));
+  write("index.html", homePage({ posts, activeCategories, categoryCounts: categoryCounts(categories, posts) }));
   write("posts/index.html", postsIndexPage({ posts, activeCategories }));
   for (const post of posts) {
-    write(`posts/${post.slug}/index.html`, postPage({ post, prev: post.prev, next: post.next }));
+    write(
+      `posts/${post.slug}/index.html`,
+      postPage({ post, prev: post.prev, next: post.next, related: relatedPosts(post, posts) }),
+    );
   }
   for (const category of activeCategories) {
     const inCategory = posts.filter((p) => p.category.slug === category.slug);
@@ -142,7 +116,9 @@ function build() {
   write("feed.xml", atomFeed(posts));
   write("sitemap.xml", sitemap(posts, activeCategories));
   write("robots.txt", robots());
+  write("search.json", JSON.stringify(searchIndex(posts)));
 
+  assertBudgets();
   console.log(`Done in ${Date.now() - started} ms`);
 }
 

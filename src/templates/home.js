@@ -3,7 +3,8 @@ import { escapeHtml } from "../lib/xml.js";
 import { layout } from "./layout.js";
 import { postList } from "./partials.js";
 
-export function homePage({ posts }) {
+// activeCategories / categoryCounts are accepted now; the markup uses them in FEAT-002.
+export function homePage({ posts, activeCategories = [], categoryCounts = [] }) {
   const body = `<section class="hero">
   <h1 class="display">${escapeHtml(config.title)} <span class="display-dev">${escapeHtml(config.titleDevanagari)}</span></h1>
   <p class="tagline">${escapeHtml(config.tagline)}</p>

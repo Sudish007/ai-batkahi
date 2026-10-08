@@ -2,16 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { DIST, htmlFiles, read } from "./helpers.js";
+import config from "../site.config.js";
+import categories from "../content/categories.js";
+import { DIST, htmlFiles, read, contentPosts, activeCategorySlugs } from "./helpers.js";
 
-test("zero-post category (khabar) has no page and is not in nav or filters", () => {
-  assert.ok(!existsSync(join(DIST, "category", "khabar")));
-  for (const slug of ["samajh", "aujaar", "raasta"]) {
-    assert.ok(existsSync(join(DIST, "category", slug, "index.html")), slug);
-  }
+test("a category has a page, filter chip and links iff it has a post", () => {
+  const active = new Set(activeCategorySlugs());
   const postsIndex = read(join(DIST, "posts", "index.html"));
-  assert.ok(!postsIndex.includes('data-filter="khabar"'));
-  assert.ok(!postsIndex.includes("/category/khabar/"));
+  for (const { slug } of categories) {
+    const isActive = active.has(slug);
+    assert.equal(existsSync(join(DIST, "category", slug, "index.html")), isActive, `${slug} page`);
+    assert.equal(postsIndex.includes(`data-filter="${slug}"`), isActive, `${slug} filter`);
+    assert.equal(postsIndex.includes(`/category/${slug}/`), isActive, `${slug} link`);
+  }
 });
 
 test("site nav has at most 5 items and no emoji", () => {
@@ -68,17 +71,50 @@ test("about page states owner facts without invented claims", () => {
   assert.ok(about.includes("BhojVerse"));
 });
 
+test("about page labels zero-post pillars as plain text, never a link", () => {
+  const about = read(join(DIST, "about", "index.html"));
+  const active = new Set(activeCategorySlugs());
+  const inactive = categories.filter((c) => !active.has(c.slug));
+  const notes = (about.match(/<span class="pillar-note">अबहीं पोस्ट नइखे<\/span>/g) || []).length;
+  assert.equal(notes, inactive.length, "one note per inactive pillar");
+  for (const { slug, name } of categories) {
+    assert.equal(about.includes(`category/${slug}/`), active.has(slug), `${slug} link`);
+    if (!active.has(slug)) {
+      assert.ok(about.includes(`<dt>${name} <span class="pillar-note">अबहीं पोस्ट नइखे</span>`), `${slug} plain text`);
+    }
+  }
+});
+
+test("summary verb fix: no 'लगावेले' on home or posts index", () => {
+  for (const rel of ["index.html", join("posts", "index.html")]) {
+    assert.ok(!read(join(DIST, rel)).includes("लगावेले"), rel);
+  }
+});
+
+test("search.json is the v1 index of every non-draft post", () => {
+  const index = JSON.parse(read(join(DIST, "search.json")));
+  const keys = ["slug", "url", "title", "title_en", "summary", "summary_en", "category", "categoryName", "tags", "date", "minutes"];
+  assert.equal(index.v, 1);
+  assert.equal(index.posts.length, contentPosts().length);
+  for (const entry of index.posts) {
+    assert.deepEqual(Object.keys(entry).sort(), [...keys].sort(), entry.slug);
+    assert.ok(entry.url.startsWith(config.basePath), entry.url);
+  }
+});
+
 test("404 page exists with Bhojpuri message and noindex", () => {
   const nf = read(join(DIST, "404.html"));
   assert.ok(nf.includes("ई पन्ना नइखे मिलल।"));
   assert.match(nf, /name="robots" content="noindex"/);
 });
 
-test("per-page HTML+CSS+JS stays under 100 KB", () => {
+test("size budgets: styles.css and main.js <= 60 KB, per-page HTML+CSS+JS <= 150 KB", () => {
   const css = Buffer.byteLength(read(join(DIST, "styles.css")));
   const js = Buffer.byteLength(read(join(DIST, "main.js")));
+  assert.ok(css <= 60 * 1024, `styles.css: ${css} bytes`);
+  assert.ok(js <= 60 * 1024, `main.js: ${js} bytes`);
   for (const file of htmlFiles()) {
     const total = Buffer.byteLength(read(file)) + css + js;
-    assert.ok(total <= 100 * 1024, `${file}: ${total} bytes`);
+    assert.ok(total <= 150 * 1024, `${file}: ${total} bytes`);
   }
 });

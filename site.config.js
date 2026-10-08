@@ -22,4 +22,13 @@ export default {
   copyrightYear: 2026,
   wordsPerMinute: 180,
   feedLimit: 20,
+  // Home hero word slot: Bhojpuri word + English gloss, cycled by main.js.
+  heroWords: [
+    { word: "अटकल", gloss: "prediction" },
+    { word: "खलिहान", gloss: "signal / noise" },
+    { word: "बुझक्कड़", gloss: "inference" },
+    { word: "समुझ", gloss: "understanding" },
+    { word: "गहिर", gloss: "deep learning" },
+    { word: "पोखरा", gloss: "data lake" },
+  ],
 };
