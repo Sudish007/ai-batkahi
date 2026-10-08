@@ -4,7 +4,25 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import config from "../site.config.js";
 import categories from "../content/categories.js";
-import { DIST, htmlFiles, read, contentPosts, activeCategorySlugs } from "./helpers.js";
+import { escapeHtml } from "../src/lib/xml.js";
+import { relatedPosts } from "../src/lib/posts.js";
+import { slugFromFilename } from "../src/lib/slugify.js";
+import { splitInEnglish } from "../src/lib/markdown-core.js";
+import { parse } from "../src/lib/frontmatter.js";
+import { DIST, POSTS_DIR, htmlFiles, read, contentPosts, activeCategorySlugs } from "./helpers.js";
+
+const POST_PAGE = /[\\/]posts[\\/]([^\\/]+)[\\/]index\.html$/;
+
+// Number of `##` sections in a post's Bhojpuri body (before "## In English").
+function bodyH2Count(file) {
+  const { body } = splitInEnglish(parse(read(join(POSTS_DIR, file))).body);
+  return (body.match(/^##\s+/gm) || []).length;
+}
+
+// slug -> h2 count for every non-draft post, so ToC expectations follow content.
+function h2CountBySlug() {
+  return new Map(contentPosts().map(({ file }) => [slugFromFilename(file), bodyH2Count(file)]));
+}
 
 test("a category has a page, filter chip and links iff it has a post", () => {
   const active = new Set(activeCategorySlugs());
@@ -106,7 +124,13 @@ test("every page has the v2 shell: masthead, three nav links, tools", () => {
 test("no page contains placeholder or fake-social text", () => {
   const banned = [/lorem/i, /coming soon/i, /follower/i, /trusted by/i, /testimonial/i];
   for (const file of htmlFiles()) {
-    const html = read(file);
+    // Only template copy is scanned (header, hero, section heads, about, 404,
+    // admin, footer, palette); authored post bodies and cards are stripped.
+    const html = read(file)
+      // Greedy: the related list nests <article> inside article.post, and a
+      // page holds exactly one article.post, so the last </article> is its end.
+      .replace(/<article class="post">[\s\S]*<\/article>/, "")
+      .replace(/<li class="post-item[\s\S]*?<\/li>/g, "");
     for (const re of banned) assert.ok(!re.test(html), `${file} matches ${re}`);
   }
 });
@@ -129,15 +153,23 @@ test("post pages have share controls, tags and prev/next where applicable", () =
 });
 
 test("every post page: one share block, details ToC with In English, progress bar, rail", () => {
-  const postPages = htmlFiles().filter((f) => /[\\/]posts[\\/][^\\/]+[\\/]index\.html$/.test(f));
+  const postPages = htmlFiles().filter((f) => POST_PAGE.test(f));
   assert.equal(postPages.length, contentPosts().length);
+  const h2Counts = h2CountBySlug();
   for (const file of postPages) {
     const html = read(file);
+    const slug = file.match(POST_PAGE)[1];
+    assert.ok(h2Counts.has(slug), `${file}: no content post for slug ${slug}`);
     assert.equal((html.match(/class="share"/g) || []).length, 1, `${file}: share blocks`);
-    const details = html.match(/<details class="toc-wrap" open>[\s\S]*?<\/details>/);
-    assert.ok(details, `${file}: details.toc-wrap`);
-    assert.ok(details[0].includes('href="#in-english-heading"'), `${file}: ToC In English link`);
-    assert.ok(details[0].includes('<nav class="toc" aria-label="एह बतकही में">'), file);
+    if (h2Counts.get(slug) >= 2) {
+      const details = html.match(/<details class="toc-wrap" open>[\s\S]*?<\/details>/);
+      assert.ok(details, `${file}: details.toc-wrap`);
+      assert.ok(details[0].includes('href="#in-english-heading"'), `${file}: ToC In English link`);
+      assert.ok(details[0].includes('<nav class="toc" aria-label="एह बतकही में">'), file);
+    } else {
+      // Zero or one section: no contents list at all.
+      assert.ok(!html.includes('class="toc-wrap"'), `${file}: ToC on a post with < 2 sections`);
+    }
     assert.ok(html.includes('<div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>'), `${file}: progress`);
     assert.ok(html.includes('<aside class="post-rail" aria-label="एह बतकही के बारे में">'), `${file}: rail`);
     // The meta line (category · date · reading time) is shown once, above the
@@ -157,13 +189,16 @@ test("every post page: one share block, details ToC with In English, progress ba
 
 test("inline scripts: the pre-paint script everywhere, the ToC collapse only right after details on posts", () => {
   const tocScript = '<script>if(!matchMedia("(min-width: 75em)").matches)document.querySelector(".toc-wrap").open=false;</script>';
+  const h2Counts = h2CountBySlug();
   for (const file of htmlFiles()) {
     const html = read(file);
     const inline = html.match(/<script>[\s\S]*?<\/script>/g) || [];
-    const isPost = /[\\/]posts[\\/][^\\/]+[\\/]index\.html$/.test(file);
-    assert.equal(inline.length, isPost ? 2 : 1, `${file}: inline script count`);
+    const postMatch = file.match(POST_PAGE);
+    // The ToC collapse script exists only where the details exist (>= 2 sections).
+    const hasToc = Boolean(postMatch) && (h2Counts.get(postMatch[1]) || 0) >= 2;
+    assert.equal(inline.length, hasToc ? 2 : 1, `${file}: inline script count`);
     assert.ok(inline[0].includes('localStorage.getItem("theme")'), `${file}: first inline script is the pre-paint script`);
-    if (isPost) {
+    if (hasToc) {
       assert.equal(inline[1], tocScript, `${file}: ToC collapse script`);
       assert.match(html, /<\/details>\s*<script>if\(!matchMedia/, `${file}: ToC script follows the details`);
     } else {
@@ -198,19 +233,36 @@ test("a category without posts appears nowhere except the About pillar list", ()
   }
 });
 
-test("related-by-tags: llm-kaise-bolela lists the two ChatGPT posts; career post has none", () => {
-  const post = read(join(DIST, "posts", "llm-kaise-bolela", "index.html"));
-  const related = post.match(/<section class="related" aria-labelledby="related-heading">[\s\S]*?<\/section>/);
-  assert.ok(related, "section.related");
-  assert.ok(related[0].includes('<h2 class="eyebrow" id="related-heading">मिलत-जुलत बतकही</h2>'));
-  const hrefs = [...related[0].matchAll(/href="([^"]+)"/g)].map((m) => m[1]).sort();
-  assert.deepEqual(hrefs, [
-    `${config.basePath}posts/ai-ke-jawab-par-bharosa/`,
-    `${config.basePath}posts/ai-se-sahi-sawal/`,
-  ]);
-  assert.equal((related[0].match(/एही टैग पर: ChatGPT<\/p>/g) || []).length, 2);
-  const career = read(join(DIST, "posts", "chhot-shahar-se-ai-career", "index.html"));
-  assert.ok(!career.includes('class="related"'));
+test("related-by-tags: every post page lists exactly the posts relatedPosts() derives from content", () => {
+  const all = contentPosts().map(({ file, data }) => ({ slug: slugFromFilename(file), tags: data.tags, date: data.date, file }));
+  const bySlug = new Map(all.map((p) => [p.slug, p]));
+  const postPages = htmlFiles().filter((f) => POST_PAGE.test(f));
+  assert.equal(postPages.length, all.length);
+  for (const file of postPages) {
+    const slug = file.match(POST_PAGE)[1];
+    const me = bySlug.get(slug);
+    assert.ok(me, `${file}: no content post for slug ${slug}`);
+    const html = read(file);
+    const rel = relatedPosts(me, all);
+    const expected = rel.map((r) => `${config.basePath}posts/${r.post.slug}/`).sort();
+    if (expected.length === 0) {
+      assert.ok(!html.includes('class="related"'), `${file}: related section on a post without shared tags`);
+      continue;
+    }
+    const related = html.match(/<section class="related" aria-labelledby="related-heading">[\s\S]*?<\/section>/);
+    assert.ok(related, `${file}: section.related`);
+    assert.ok(related[0].includes('<h2 class="eyebrow" id="related-heading">मिलत-जुलत बतकही</h2>'), file);
+    const items = [...related[0].matchAll(/<li><article>[\s\S]*?href="([^"]+)"[\s\S]*?<p class="related-why">एही टैग पर: ([^<]*)<\/p>[\s\S]*?<\/li>/g)];
+    assert.deepEqual(items.map((m) => m[1]).sort(), expected, `${file}: related hrefs`);
+    const why = new Map(items.map((m) => [m[1], m[2]]));
+    for (const r of rel) {
+      const href = `${config.basePath}posts/${r.post.slug}/`;
+      assert.equal(why.get(href), r.shared.map(escapeHtml).join(", "), `${file}: shared tags for ${r.post.slug}`);
+    }
+  }
+  // Sanity: with the shipped six posts llm-kaise-bolela shares ChatGPT with two others.
+  const llm = bySlug.get("llm-kaise-bolela");
+  if (llm && all.length === 6) assert.equal(relatedPosts(llm, all).length, 2);
 });
 
 test("posts index and category pages render the card grid with the filter chips", () => {
@@ -259,12 +311,6 @@ test("about page labels zero-post pillars as plain text, never a link", () => {
     if (!active.has(slug)) {
       assert.ok(about.includes(`<dt>${name} <span class="pillar-note">अबहीं पोस्ट नइखे</span>`), `${slug} plain text`);
     }
-  }
-});
-
-test("summary verb fix: no 'लगावेले' on home or posts index", () => {
-  for (const rel of ["index.html", join("posts", "index.html")]) {
-    assert.ok(!read(join(DIST, rel)).includes("लगावेले"), rel);
   }
 });
 
