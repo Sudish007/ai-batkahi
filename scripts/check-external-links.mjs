@@ -2,6 +2,7 @@
 // after following redirects. Exit 1 if any link fails. Run via `npm run check-links`.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import config from "../site.config.js";
 
 const DIST = new URL("../dist/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const UA =
@@ -17,11 +18,14 @@ function walk(dir, out = []) {
   return out;
 }
 
+// Canonical / og:url self-references point at siteUrl and are not external links.
 const urls = new Set();
 for (const file of walk(DIST)) {
   const html = readFileSync(file, "utf8");
   for (const m of html.matchAll(/href="(https?:\/\/[^"]+)"/g)) {
-    urls.add(m[1].replace(/&amp;/g, "&"));
+    const u = m[1].replace(/&amp;/g, "&");
+    if (u.startsWith(config.siteUrl)) continue;
+    urls.add(u);
   }
 }
 

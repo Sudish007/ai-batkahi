@@ -27,7 +27,7 @@ export function siteNav() {
     <li><a href="${url("posts/")}">सब बतकही</a></li>
     <li><a href="${url("about/")}">हमरा बारे में</a></li>
     <li><a href="${config.instagramUrl}" rel="noopener">Instagram</a></li>
-    <li><button class="theme-toggle" type="button" hidden aria-label="थीम बदलीं" data-dark-label="अन्हार थीम" data-light-label="अंजोर थीम">अन्हार थीम</button></li>
+    <li><button class="theme-toggle" type="button" hidden data-dark-label="अन्हार थीम" data-light-label="अंजोर थीम">अन्हार थीम</button></li>
   </ul>
 </nav>`;
 }

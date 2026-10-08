@@ -78,8 +78,12 @@
       });
     }
 
-    var initial = location.hash.replace(/^#/, "");
-    if (initial) apply(initial);
+    var applyFromHash = function () {
+      var slug = location.hash.replace(/^#/, "");
+      apply(slug || "all");
+    };
+    window.addEventListener("hashchange", applyFromHash);
+    if (location.hash) applyFromHash();
   }
 
   /* ---------- Share controls (post page) ---------- */
