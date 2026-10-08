@@ -91,8 +91,3 @@ export function postGrid(posts, { kind = "cards", headingLevel = 2 } = {}) {
 ${posts.map((p) => postCard(p, { headingLevel })).join("\n")}
 </ul>`;
 }
-
-// Kept for posts-index/category until FEAT-003 switches them to postGrid.
-export function postList(posts, opts = {}) {
-  return postGrid(posts, { kind: "cards", ...opts });
-}

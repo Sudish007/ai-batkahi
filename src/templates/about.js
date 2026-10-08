@@ -11,33 +11,41 @@ export function aboutPage({ activeCategories, allCategories }) {
       const name = activeSlugs.has(c.slug)
         ? `<a href="${url(`category/${c.slug}/`)}">${escapeHtml(c.name)}</a>`
         : `${escapeHtml(c.name)} <span class="pillar-note">अबहीं पोस्ट नइखे</span>`;
-      return `    <div class="pillar">
-      <dt>${name} <span class="slug-hint" lang="en">${escapeHtml(c.slug)}</span></dt>
-      <dd>${escapeHtml(c.description)}</dd>
-    </div>`;
+      return `        <div class="pillar">
+          <dt>${name} <span class="slug-hint" lang="en">${escapeHtml(c.slug)}</span></dt>
+          <dd>${escapeHtml(c.description)}</dd>
+        </div>`;
     })
     .join("\n");
 
-  const body = `<article class="prose about">
+  // Two-column magazine layout at >= 75em: the prose on the left, the pillar
+  // list and maker note in an aside on the right. Heading order: h1, then h2s.
+  const body = `<article class="about">
   <header class="page-header">
     <h1>हमरा बारे में</h1>
   </header>
 
-  <h2>AI Batkahi का ह</h2>
-  <p>${escapeHtml(config.title)} एगो ब्लॉग आ Instagram पेज बा, जे ${escapeHtml(config.startedLabel)} में शुरू भइल। इहाँ AI (artificial intelligence), machine learning आ data science के बात भोजपुरी में होला — ना ऊँच-ऊँच अंग्रेजी, ना बाजारू वादा। "बतकही" माने बातचीत; हर पोस्ट एगो बतकही बा, जइसे दुआर पर बइठ के केहू समझावत होखे।</p>
-  <p>मकसद सीधा बा: जे लोग भोजपुरी में सोचेला, ओकरा AI के समझ आपन भाषा में मिले — का होला, कइसे बरतल जाए, कहाँ सावधान रहल जाए, आ सीखे के रास्ता कहाँ से खुलेला।</p>
+  <div class="about-grid">
+    <div class="prose">
+      <h2>AI Batkahi का ह</h2>
+      <p>${escapeHtml(config.title)} एगो ब्लॉग आ Instagram पेज बा, जे ${escapeHtml(config.startedLabel)} में शुरू भइल। इहाँ AI (artificial intelligence), machine learning आ data science के बात भोजपुरी में होला — ना ऊँच-ऊँच अंग्रेजी, ना बाजारू वादा। "बतकही" माने बातचीत; हर पोस्ट एगो बतकही बा, जइसे दुआर पर बइठ के केहू समझावत होखे।</p>
+      <p>मकसद सीधा बा: जे लोग भोजपुरी में सोचेला, ओकरा AI के समझ आपन भाषा में मिले — का होला, कइसे बरतल जाए, कहाँ सावधान रहल जाए, आ सीखे के रास्ता कहाँ से खुलेला।</p>
 
-  <h2>चार विषय</h2>
-  <dl class="pillars">
+      <h2>एगो ईमानदार बात</h2>
+      <p>जहाँ हमरा पक्का ना मालूम, उहाँ हम कम कहब, बनावब ना। भोजपुरी लिखाई में कवनो चूक लागे त Instagram पर बताईं — सुधार होई।</p>
+    </div>
+
+    <aside class="about-side" aria-label="विषय आ बनावे वाला">
+      <h2>चार विषय</h2>
+      <dl class="pillars">
 ${pillars}
-  </dl>
+      </dl>
 
-  <h2>के बनावेला</h2>
-  <p>${escapeHtml(config.author.name)}। हम <a href="${config.bhojverseUrl}" rel="noopener">BhojVerse</a> नाम के भोजपुरी सीखे वाला ऐप भी बनवले बानी — ई साइट ओही बनावे वाला के ओर से बा। हमार कोड <a href="${config.author.github}" rel="noopener">GitHub</a> पर आ बाकी बात <a href="${config.author.site}" rel="noopener">sudish.dev</a> पर मिली।</p>
-  <p>छोट-छोट बतकही Instagram पर भी: <a href="${config.instagramUrl}" rel="noopener">${escapeHtml(config.instagramHandle)}</a>।</p>
-
-  <h2>एगो ईमानदार बात</h2>
-  <p>जहाँ हमरा पक्का ना मालूम, उहाँ हम कम कहब, बनावब ना। भोजपुरी लिखाई में कवनो चूक लागे त Instagram पर बताईं — सुधार होई।</p>
+      <h2>के बनावेला</h2>
+      <p>${escapeHtml(config.author.name)}। हम <a href="${config.bhojverseUrl}" rel="noopener">BhojVerse</a> नाम के भोजपुरी सीखे वाला ऐप भी बनवले बानी — ई साइट ओही बनावे वाला के ओर से बा। हमार कोड <a href="${config.author.github}" rel="noopener">GitHub</a> पर आ बाकी बात <a href="${config.author.site}" rel="noopener">sudish.dev</a> पर मिली।</p>
+      <p>छोट-छोट बतकही Instagram पर भी: <a href="${config.instagramUrl}" rel="noopener">${escapeHtml(config.instagramHandle)}</a>।</p>
+    </aside>
+  </div>
 </article>`;
 
   return layout({

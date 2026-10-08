@@ -152,7 +152,71 @@
     }
   }
 
-  /* ---------- Category filter (posts index) ---------- */
+  /* ---------- Reading progress fallback (post page) ----------
+     The CSS drives the bar with a scroll() timeline where supported; here we
+     only step in for browsers without scroll-driven animations. */
+  var bar = document.querySelector(".progress-bar");
+  if (
+    bar &&
+    !(window.CSS && CSS.supports && CSS.supports("animation-timeline: scroll()"))
+  ) {
+    var updateProgress = function () {
+      var max = Math.max(1, root.scrollHeight - window.innerHeight);
+      bar.style.transform = "scaleX(" + Math.min(1, window.scrollY / max) + ")";
+    };
+    window.addEventListener("scroll", updateProgress, { passive: true });
+    window.addEventListener("resize", updateProgress);
+    updateProgress();
+  }
+
+  /* ---------- Table of contents (post page) ----------
+     <details> is open in the HTML so it works without JS. With JS it starts
+     collapsed below 75em (a reader's own toggle is respected) and is forced
+     open from 75em, where the CSS hides the summary and shows the sticky rail. */
+  var details = document.querySelector(".toc-wrap");
+  if (details) {
+    var wide = window.matchMedia("(min-width: 75em)");
+    var userToggled = false;
+    var syncToc = function () {
+      if (wide.matches) details.open = true;
+      else if (!userToggled) details.open = false;
+    };
+    var summary = details.querySelector("summary");
+    if (summary) {
+      summary.addEventListener("click", function () {
+        userToggled = true;
+      });
+    }
+    syncToc();
+    if (wide.addEventListener) wide.addEventListener("change", syncToc);
+    else if (wide.addListener) wide.addListener(syncToc);
+
+    // Active section: the last heading whose top is above 30% of the viewport.
+    var tocLinks = details.querySelectorAll('.toc a[href^="#"]');
+    var targets = [];
+    for (var t = 0; t < tocLinks.length; t++) {
+      var heading = document.getElementById(tocLinks[t].getAttribute("href").slice(1));
+      if (heading) targets.push({ link: tocLinks[t], heading: heading });
+    }
+    if (targets.length) {
+      var markActive = function () {
+        var line = window.innerHeight * 0.3;
+        var active = targets[0];
+        for (var u = 0; u < targets.length; u++) {
+          if (targets[u].heading.getBoundingClientRect().top <= line) active = targets[u];
+        }
+        for (var v = 0; v < targets.length; v++) {
+          if (targets[v] === active) targets[v].link.setAttribute("aria-current", "true");
+          else targets[v].link.removeAttribute("aria-current");
+        }
+      };
+      window.addEventListener("scroll", markActive, { passive: true });
+      markActive();
+    }
+  }
+
+  /* ---------- Category filter (posts index) ----------
+     Hash first, then the ?category= deep link; clicks rewrite only the hash. */
   var filter = document.querySelector(".filter");
   if (filter) {
     var links = filter.querySelectorAll("a[data-filter]");
@@ -198,7 +262,12 @@
       apply(slug || "all");
     };
     window.addEventListener("hashchange", applyFromHash);
-    if (location.hash) applyFromHash();
+
+    var initial = location.hash.slice(1);
+    if (!initial && window.URLSearchParams) {
+      initial = new URLSearchParams(location.search).get("category") || "";
+    }
+    if (initial) apply(initial); // unknown slugs fall back to "all" inside apply()
   }
 
   /* ---------- Share controls (post page) ---------- */

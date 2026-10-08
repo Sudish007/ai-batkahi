@@ -128,12 +128,76 @@ test("post pages have share controls, tags and prev/next where applicable", () =
   assert.match(post, /rel="next"/);
 });
 
+test("every post page: one share block, details ToC with In English, progress bar, rail", () => {
+  const postPages = htmlFiles().filter((f) => /[\\/]posts[\\/][^\\/]+[\\/]index\.html$/.test(f));
+  assert.equal(postPages.length, contentPosts().length);
+  for (const file of postPages) {
+    const html = read(file);
+    assert.equal((html.match(/class="share"/g) || []).length, 1, `${file}: share blocks`);
+    const details = html.match(/<details class="toc-wrap" open>[\s\S]*?<\/details>/);
+    assert.ok(details, `${file}: details.toc-wrap`);
+    assert.ok(details[0].includes('href="#in-english-heading"'), `${file}: ToC In English link`);
+    assert.ok(details[0].includes('<nav class="toc" aria-label="एह बतकही में">'), file);
+    assert.ok(html.includes('<div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>'), `${file}: progress`);
+    assert.ok(html.includes('<aside class="post-rail" aria-label="एह बतकही के बारे में">'), `${file}: rail`);
+    assert.match(html, /<main id="main" class="container post-wrap" tabindex="-1">/, file);
+    assert.match(html, /<h1>[^<]+<\/h1>\s*<p class="title-en" lang="en">/, file);
+    assert.ok(html.includes('<p class="eyebrow"><span lang="en">Summary</span></p>'), `${file}: Summary eyebrow`);
+  }
+  for (const file of htmlFiles()) {
+    if (postPages.includes(file)) continue;
+    assert.ok(!read(file).includes('<div class="progress"'), `${file}: progress on a non-post page`);
+  }
+});
+
+test("related-by-tags: llm-kaise-bolela lists the two ChatGPT posts; career post has none", () => {
+  const post = read(join(DIST, "posts", "llm-kaise-bolela", "index.html"));
+  const related = post.match(/<section class="related" aria-labelledby="related-heading">[\s\S]*?<\/section>/);
+  assert.ok(related, "section.related");
+  assert.ok(related[0].includes('<h2 class="eyebrow" id="related-heading">मिलत-जुलत बतकही</h2>'));
+  const hrefs = [...related[0].matchAll(/href="([^"]+)"/g)].map((m) => m[1]).sort();
+  assert.deepEqual(hrefs, [
+    `${config.basePath}posts/ai-ke-jawab-par-bharosa/`,
+    `${config.basePath}posts/ai-se-sahi-sawal/`,
+  ]);
+  assert.equal((related[0].match(/एही टैग पर: ChatGPT<\/p>/g) || []).length, 2);
+  const career = read(join(DIST, "posts", "chhot-shahar-se-ai-career", "index.html"));
+  assert.ok(!career.includes('class="related"'));
+});
+
+test("posts index and category pages render the card grid with the filter chips", () => {
+  const index = read(join(DIST, "posts", "index.html"));
+  const filters = [...index.matchAll(/data-filter="([^"]+)"/g)].map((m) => m[1]).sort();
+  assert.deepEqual(filters, ["all", ...activeCategorySlugs()].sort());
+  assert.match(index, /<a href="[^"]*" data-filter="all" aria-current="true">सब<\/a>/);
+  assert.ok(index.includes('<ul class="post-grid cards">'));
+  const items = index.match(/<li class="post-item[^>]*>/g) || [];
+  assert.equal(items.length, contentPosts().length);
+  for (const li of items) assert.match(li, / data-category="[a-z]+"/);
+  assert.ok(index.includes('<header class="page-header">'));
+  for (const slug of activeCategorySlugs()) {
+    const page = read(join(DIST, "category", slug, "index.html"));
+    assert.ok(page.includes('<ul class="post-grid cards">'), slug);
+    assert.ok(!page.includes('class="filter"'), `${slug}: no filter on a category page`);
+  }
+});
+
 test("about page states owner facts without invented claims", () => {
   const about = read(join(DIST, "about", "index.html"));
   assert.ok(about.includes("Sudish Kumar"));
   assert.ok(about.includes("https://github.com/Sudish007"));
   assert.ok(about.includes("https://sudish.dev"));
   assert.ok(about.includes("BhojVerse"));
+});
+
+test("about page is the two-column grid with the pillar list", () => {
+  const about = read(join(DIST, "about", "index.html"));
+  assert.ok(about.includes('<div class="about-grid">'));
+  assert.ok(about.includes('<aside class="about-side" aria-label="विषय आ बनावे वाला">'));
+  assert.ok(about.includes("चार विषय"));
+  assert.equal((about.match(/<div class="pillar">/g) || []).length, categories.length);
+  assert.equal((about.match(/<h1[\s>]/g) || []).length, 1);
+  assert.equal((about.match(/<h[3-6][\s>]/g) || []).length, 0, "about uses only h1 and h2");
 });
 
 test("about page labels zero-post pillars as plain text, never a link", () => {
@@ -171,6 +235,8 @@ test("404 page exists with Bhojpuri message and noindex", () => {
   const nf = read(join(DIST, "404.html"));
   assert.ok(nf.includes("ई पन्ना नइखे मिलल।"));
   assert.match(nf, /name="robots" content="noindex"/);
+  assert.equal((nf.match(/<a class="pill" href="/g) || []).length, 2);
+  assert.ok(nf.includes('<ul class="link-row">'));
 });
 
 test("size budgets: styles.css and main.js <= 60 KB, per-page HTML+CSS+JS <= 150 KB", () => {
