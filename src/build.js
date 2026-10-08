@@ -1,5 +1,5 @@
 // AI Batkahi build: Markdown + templates -> dist/. Run with `npm run build`.
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +7,7 @@ import config from "../site.config.js";
 import categories from "../content/categories.js";
 import { loadPosts, activeCategories as pickActive, categoryCounts, relatedPosts } from "./lib/posts.js";
 import { searchIndex } from "./lib/search-index.js";
+import { imageManifest } from "./lib/image-size.js";
 import { FONT_FILES } from "./lib/fonts.js";
 import { atomFeed, sitemap, robots } from "./feeds.js";
 import { homePage } from "./templates/home.js";
@@ -20,6 +21,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
 const PUBLIC = join(ROOT, "public");
 const POSTS_DIR = join(ROOT, "content", "posts");
+const IMAGES_DIR = join(ROOT, "content", "images"); // copied to dist/images/
 
 // Size budgets (bytes). The build fails on any violation.
 const KB = 1024;
@@ -92,11 +94,13 @@ function build() {
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(DIST, { recursive: true });
 
-  const posts = loadPosts({ dir: POSTS_DIR, categories, wordsPerMinute: config.wordsPerMinute });
+  const imageSizes = imageManifest(IMAGES_DIR);
+  const posts = loadPosts({ dir: POSTS_DIR, categories, wordsPerMinute: config.wordsPerMinute, imageSizes });
   const activeCategories = pickActive(categories, posts);
 
   console.log(`Building ${posts.length} posts, ${activeCategories.length} active categories -> dist/`);
   copyPublic();
+  if (existsSync(IMAGES_DIR)) cpSync(IMAGES_DIR, join(DIST, "images"), { recursive: true });
   copyFonts();
 
   write("index.html", homePage({ posts, activeCategories, categoryCounts: categoryCounts(categories, posts) }));

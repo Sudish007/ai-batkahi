@@ -15,7 +15,7 @@ function isDraft(data) {
   return data.draft === "true" || data.draft === true;
 }
 
-export function loadPosts({ dir, categories, wordsPerMinute }) {
+export function loadPosts({ dir, categories, wordsPerMinute, imageSizes = {} }) {
   const byCategory = new Map(categories.map((c) => [c.slug, c]));
   const files = readdirSync(dir).filter((f) => f.endsWith(".md")).sort();
   const posts = [];
@@ -46,7 +46,7 @@ export function loadPosts({ dir, categories, wordsPerMinute }) {
       throw new Error(`${file}: missing "## In English" section`);
     }
     const words = countWords(fullBody);
-    const html = renderMarkdown(body);
+    const html = renderMarkdown(body, { imageSizes });
     posts.push({
       file,
       slug: slugFromFilename(file),
@@ -62,7 +62,7 @@ export function loadPosts({ dir, categories, wordsPerMinute }) {
       minutes: readingMinutes(words, wordsPerMinute),
       html,
       toc: extractToc(html),
-      inEnglishHtml: renderMarkdown(inEnglish),
+      inEnglishHtml: renderMarkdown(inEnglish, { imageSizes }),
     });
   }
 

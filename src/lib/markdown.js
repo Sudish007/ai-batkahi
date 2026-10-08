@@ -1,51 +1,20 @@
+// Node wrapper around the shared Markdown core (markdown-core.js). Knows about
+// Marked and basePath; the admin preview uses the core directly in the browser
+// with its own resolveUrl, so renderer logic must live in the core, not here.
 import { Marked } from "marked";
-import { slugify } from "./slugify.js";
-import { escapeHtml } from "./xml.js";
 import { url } from "./urls.js";
+import { MARKED_OPTIONS, createRenderer, splitInEnglish } from "./markdown-core.js";
 
-// Heading ids: Latin slug when the text has Latin characters, otherwise a
-// stable positional id (Devanagari headings produce an empty Latin slug).
-// Ids are unique per render: repeats get -2, -3, … suffixes.
-function makeRenderer() {
-  let count = 0;
-  const used = new Set();
-  return {
-    heading({ tokens, depth }) {
-      const text = this.parser.parseInline(tokens);
-      const plain = text.replace(/<[^>]+>/g, "");
-      count += 1;
-      const latin = slugify(plain);
-      const base = latin !== "" ? latin : `section-${count}`;
-      let id = base;
-      for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
-      used.add(id);
-      return `<h${depth} id="${id}">${text}</h${depth}>\n`;
-    },
-    link({ href, title, tokens }) {
-      const text = this.parser.parseInline(tokens);
-      const external = /^https?:\/\//i.test(href);
-      // Root-relative links in Markdown ("/posts/x/") are rewritten under basePath.
-      const resolved = href.startsWith("/") ? url(href) : href;
-      const attrs = [`href="${escapeHtml(resolved)}"`];
-      if (title) attrs.push(`title="${escapeHtml(title)}"`);
-      if (external) attrs.push('rel="noopener"');
-      return `<a ${attrs.join(" ")}>${text}</a>`;
-    },
-  };
-}
+export { splitInEnglish };
 
-export function renderMarkdown(markdown) {
-  const marked = new Marked({ gfm: true, breaks: false });
-  marked.use({ renderer: makeRenderer() });
+export function renderMarkdown(markdown, { imageSizes = {} } = {}) {
+  const marked = new Marked(MARKED_OPTIONS);
+  marked.use({
+    renderer: createRenderer({
+      resolveUrl: (h) => (h.startsWith("/") ? url(h) : h),
+      imageSizes,
+      onMissingSize: (h) => console.log(`warn: image without dimensions: ${h}`),
+    }),
+  });
   return marked.parse(markdown);
-}
-
-// Split the trailing "## In English" section out of the body.
-export function splitInEnglish(markdown) {
-  const re = /^##\s+In English\s*$/im;
-  const m = re.exec(markdown);
-  if (!m) return { body: markdown, inEnglish: "" };
-  const body = markdown.slice(0, m.index).trimEnd() + "\n";
-  const inEnglish = markdown.slice(m.index + m[0].length).trim();
-  return { body, inEnglish };
 }
