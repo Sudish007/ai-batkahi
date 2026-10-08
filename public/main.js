@@ -603,7 +603,7 @@
 
     // Ctrl/⌘+K is always on (it is a modifier shortcut, WCAG 2.1.4 does not apply).
     document.addEventListener("keydown", function (ev) {
-      if (ev.key === "k" && (ev.ctrlKey || ev.metaKey) && !ev.altKey) {
+      if (ev.key.toLowerCase() === "k" && (ev.ctrlKey || ev.metaKey) && !ev.altKey) {
         ev.preventDefault();
         openPalette(searchBtn || document.activeElement);
       }
