@@ -47,6 +47,8 @@ export function layout({
   noindex = false,
   mainClass = "container",
   progress = false,
+  head = "", // extra <head> markup, emitted after the styles.css link (admin: CSP + admin.css)
+  foot = "", // extra end-of-body markup, emitted after main.js (admin: module script)
 }) {
   const fullTitle = title ? `${title} · ${config.title}` : `${config.title} · ${config.tagline}`;
   const desc = description || config.description;
@@ -81,7 +83,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <script>${PREPAINT}</script>
 ${preloads}
 <link rel="stylesheet" href="${url("styles.css")}">
-</head>
+${head ? `${head}\n` : ""}</head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}>
 <a class="skip-link" href="#main">सीधे मुख्य सामग्री पर जाईं</a>
 ${progress ? '<div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>\n' : ""}<header class="site-header">
@@ -97,7 +99,7 @@ ${body}
 ${footer()}
 ${palette()}
 <script src="${url("main.js")}" defer></script>
-</body>
+${foot ? `${foot}\n` : ""}</body>
 </html>
 `;
 }

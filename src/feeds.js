@@ -72,7 +72,7 @@ ${items}
 }
 
 export function robots() {
-  return `User-agent: *\nAllow: /\n\nSitemap: ${absUrl("sitemap.xml")}\n`;
+  return `User-agent: *\nAllow: /\nDisallow: ${url("admin/")}\n\nSitemap: ${absUrl("sitemap.xml")}\n`;
 }
 
 export { url };

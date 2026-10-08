@@ -50,9 +50,11 @@ test("sitemap.xml is well-formed with absolute <loc> values and no inactive cate
   }
 });
 
-test("robots.txt allows all and points at the sitemap", () => {
+test("robots.txt allows all except admin/ and points at the sitemap", () => {
   const robots = read(join(DIST, "robots.txt"));
   assert.match(robots, /User-agent: \*/);
-  assert.match(robots, /Allow: \//);
+  assert.match(robots, /^Allow: \/$/m);
+  assert.ok(robots.includes(`Disallow: ${config.basePath}admin/`));
+  assert.ok(robots.includes("Disallow: /ai-batkahi/admin/"));
   assert.ok(robots.includes(`Sitemap: ${config.siteUrl}/sitemap.xml`));
 });
