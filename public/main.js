@@ -25,7 +25,9 @@
       // Keep browser UI colour in step with an explicit choice (both media-gated
       // metas get the same value so whichever one matches is correct).
       if (root.hasAttribute("data-theme")) {
-        var bg = isDark ? "#15130F" : "#FAF6EF";
+        // Source of truth is the --bg token in styles.css; literals are a fallback only.
+        var bg = getComputedStyle(root).getPropertyValue("--bg").trim() ||
+          (isDark ? "#15130F" : "#FAF6EF");
         for (var m = 0; m < themeMetas.length; m++) {
           themeMetas[m].setAttribute("content", bg);
         }
