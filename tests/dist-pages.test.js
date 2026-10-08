@@ -38,6 +38,71 @@ test("home links to Instagram with the handle and has the honest intro", () => {
   assert.ok(home.includes("नया बतकही"));
 });
 
+test("home hero: display h1, kinetic slot without aria-label, computed facts", () => {
+  const home = read(join(DIST, "index.html"));
+  assert.match(home, /<h1 class="display" id="site-title">एआई बतकही<span class="visually-hidden"> — AI Batkahi<\/span><\/h1>/);
+  const slotTag = home.match(/<button class="slot"[^>]*>/);
+  assert.ok(slotTag, "slot button");
+  assert.ok(!/aria-label/.test(slotTag[0]), "slot must not carry aria-label");
+  assert.match(slotTag[0], /aria-describedby="slot-hint"/);
+  assert.match(slotTag[0], /\bdisabled\b/);
+  const items = home.match(/<span class="slot-item"[^>]*>/g) || [];
+  assert.equal(items.length, config.heroWords.length);
+  assert.equal(items.length, 6);
+  assert.match(items[0], / data-on>/);
+  for (const it of items.slice(1)) assert.ok(!/data-on/.test(it));
+  assert.ok(home.includes('<span class="visually-hidden" id="slot-hint">अगिला शब्द खातिर दबाईं</span>'));
+  assert.ok(home.includes('<a class="scroll-cue" href="#latest">'));
+  const facts = home.match(/<p class="hero-facts">([\s\S]*?)<\/p>/);
+  assert.ok(facts, "hero-facts");
+  assert.ok(facts[1].includes(`<span>${contentPosts().length} बतकही</span>`));
+  assert.ok(facts[1].includes(`<span>${activeCategorySlugs().length} विषय</span>`));
+  assert.ok(facts[1].includes(`<span lang="en">${config.instagramHandle}</span>`));
+});
+
+test("home sections: bento grid, pillar strip with real counts, Instagram aside", () => {
+  const home = read(join(DIST, "index.html"));
+  assert.ok(!home.includes("चार विषय"), "no literal pillar count on home");
+  assert.ok(home.includes("सब बतकही देखीं"));
+  assert.ok(home.includes('<ul class="post-grid bento">'));
+  assert.equal((home.match(/<li class="post-item reveal" data-category="/g) || []).length, contentPosts().length);
+  assert.ok(!/post-index/.test(home), "no decorative index numerals");
+  const vishay = home.match(/<ul class="vishay">([\s\S]*?)<\/ul>/);
+  assert.ok(vishay, "ul.vishay");
+  const cells = vishay[1].match(/<li class="reveal"><a href="[^"]*\/category\//g) || [];
+  assert.equal(cells.length, activeCategorySlugs().length);
+  const posts = contentPosts();
+  for (const slug of activeCategorySlugs()) {
+    const n = posts.filter(({ data }) => data.category === slug).length;
+    const cell = vishay[1].match(new RegExp(`/category/${slug}/"[\\s\\S]*?</li>`));
+    assert.ok(cell, `${slug} cell`);
+    assert.ok(cell[0].includes(`<p class="vishay-count">${n} बतकही</p>`), `${slug} count`);
+  }
+  assert.ok(home.includes('<aside class="cta container" aria-label="Instagram">'));
+  assert.match(home, /<a class="insta-handle" href="https:\/\/www\.instagram\.com\/batkahi\/" rel="noopener" lang="en">@batkahi<\/a>/);
+});
+
+test("every page has the v2 shell: masthead, three nav links, tools", () => {
+  for (const file of htmlFiles()) {
+    const html = read(file);
+    assert.match(html, /<a class="masthead" href="\/ai-batkahi\/">/, file);
+    assert.ok(!html.includes("masthead-wrap"), file);
+    const nav = html.match(/<nav class="site-nav" aria-label="मुख्य">[\s\S]*?<\/nav>/);
+    assert.ok(nav, file);
+    assert.equal((nav[0].match(/<li>/g) || []).length, 3, file);
+    assert.equal((nav[0].match(/class="nav-link"/g) || []).length, 3, file);
+    assert.match(html, /<\/nav>\s*<div class="tools">/, file);
+    assert.match(html, /<a class="icon-btn search-btn" href="\/ai-batkahi\/posts\/">/, file);
+    assert.ok(!/<a class="icon-btn search-btn"[^>]*aria-label/.test(html), `${file}: search link has aria-label`);
+    assert.match(html, /<button class="icon-btn theme-toggle" type="button" disabled aria-label="अन्हार थीम करीं" data-dark-label="अन्हार थीम करीं" data-light-label="अंजोर थीम करीं">/, file);
+    assert.match(html, /<svg class="sunmoon"[^>]*aria-hidden="true"/, file);
+    assert.match(html, /<main id="main"( class="[^"]*")? tabindex="-1">/, file);
+  }
+  const home = read(join(DIST, "index.html"));
+  assert.match(home, /<main id="main" tabindex="-1">/);
+  assert.ok(!home.includes('<div class="progress"'));
+});
+
 test("no page contains placeholder or fake-social text", () => {
   const banned = [/lorem/i, /coming soon/i, /follower/i, /trusted by/i, /testimonial/i];
   for (const file of htmlFiles()) {

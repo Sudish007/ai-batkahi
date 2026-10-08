@@ -6,13 +6,30 @@ import { DIST, read } from "./helpers.js";
 const css = read(join(DIST, "styles.css"));
 const ROOT_PX = 16;
 
-// Resolve --fs-* tokens (declared as rem) to px.
+// Resolve a length (rem | em | px) or the first argument of a clamp() to px.
+// The floor only needs the minimum, which is clamp()'s first argument.
+export function toPx(value, rootPx = ROOT_PX) {
+  let v = value.trim();
+  if (v.startsWith("clamp(")) v = v.slice("clamp(".length).split(",")[0].trim();
+  const m = v.match(/^([\d.]+)(rem|em|px)$/);
+  if (!m) return null;
+  return m[2] === "px" ? Number(m[1]) : Number(m[1]) * rootPx;
+}
+
+// Resolve --fs-* tokens (declared as rem/px, optionally inside clamp()) to px.
 const tokens = {};
-for (const m of css.matchAll(/(--fs-[a-z0-9]+):\s*([\d.]+)(rem|px)/g)) {
+for (const m of css.matchAll(/(--fs-[a-z0-9]+):\s*(?:clamp\(\s*)?([\d.]+)(rem|px)/g)) {
   const px = m[3] === "rem" ? Number(m[2]) * ROOT_PX : Number(m[2]);
   // keep the smallest declaration per token (media overrides only go up)
   tokens[m[1]] = tokens[m[1]] === undefined ? px : Math.min(tokens[m[1]], px);
 }
+
+test("clamp() helper resolves the first argument", () => {
+  assert.equal(toPx("clamp(4rem, 15vw, 30rem)"), 64);
+  assert.equal(toPx("1.0625rem"), 17);
+  assert.equal(toPx("13px"), 13);
+  assert.equal(toPx("var(--fs-sm)"), null);
+});
 
 test("every --fs-* token is at least 12px", () => {
   assert.ok(Object.keys(tokens).length >= 7);
@@ -30,9 +47,8 @@ test("every font-size declaration resolves to >= 12px", () => {
       assert.ok(tokens[varRef[1]] >= 12, `${v} -> ${tokens[varRef[1]]}px`);
       continue;
     }
-    const num = v.match(/^([\d.]+)(rem|em|px)$/);
-    assert.ok(num, `unparseable font-size: ${v}`);
-    const px = num[2] === "px" ? Number(num[1]) : Number(num[1]) * ROOT_PX;
+    const px = toPx(v);
+    assert.ok(px !== null, `unparseable font-size: ${v}`);
     assert.ok(px >= 12, `font-size ${v} = ${px}px`);
   }
 });
