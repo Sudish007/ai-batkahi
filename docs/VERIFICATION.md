@@ -1,4 +1,34 @@
-# Live verification — 2026-10-08
+# v2 Phase 1 — local (pre-merge), 2026-10-08
+
+Measured on `dist/` built with Node 24.16 (`engines.node >=22.2`) from branch `feat/ui-v2` and served by `scripts/serve.mjs` (gzip, like Pages) at `http://127.0.0.1:8082/ai-batkahi/`. The live run for v2 is appended by the merge step, which also refreshes `docs/screenshots/` from the deployed site.
+
+## Tests and audit
+
+- `npm test`: 85 pass / 0 fail (unit + dist suites; builds first).
+- `npm run audit` (`scripts/audit.mjs`, Chromium via Playwright for Node): **657 rows, 0 failed**. Matrix of 6 pages × 8 widths (320–2560) × light/dark for overflow, 12 px floor, fluid body size, ≥ 40 px controls, AA contrast with the grain composited (worst pair 6.43:1 light / 6.65:1 dark) and zero page errors; plus focus visibility, light default under an OS dark preference, stored-dark persistence and pre-paint `theme-color`, zero animations under reduced motion, content without JavaScript, fonts blocked, two-row mobile header, hero at the fold, container ≥ 92 % of the viewport at 1440/1920/2560, post rail geometry, kinetic slot, theme toggle, `⌘ K` on Mac, palette keyboard flow, chords and the shortcut switch, ToC active state, reading progress, view-transition title handoff, print, and 72 viewport screenshots.
+- Seventh-post / first-खबर dry run: adding `content/posts/07-tmp-khabar.md` → 7 posts, 4 categories, `category/khabar/` page, filter chip and home pillar, 86 tests green; removing it → 85 green, tree clean.
+
+## Budgets (build output)
+
+| asset | bytes | budget |
+| --- | --- | --- |
+| `styles.css` | 38 145 B (37.3 KB) | ≤ 60 KB |
+| `main.js` | 25 655 B (25.1 KB) | ≤ 60 KB |
+| largest page HTML + CSS + JS (`posts/chhot-shahar-se-ai-career/`) | 86 818 B (84.8 KB) | ≤ 150 KB |
+| fonts (6 woff2, `font-display: optional`, preloaded) | 251 292 B (245.4 KB) | ≤ 500 KB |
+
+## Lighthouse 13.5.0 (mobile preset, headless Edge, local gzip server)
+
+| Page | Performance | Accessibility | Best practices | SEO | LCP | CLS | TBT | LCP element |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Home | 96 | 100 | 100 | 100 | 2.73 s | 0 | 13–20 ms | `h1#site-title` |
+| Post (llm-kaise-bolela) | 96 | 100 | 100 | 100 | 2.73 s | 0 | 42 ms | lede paragraph (same paint as the h1) |
+
+The 2.73 s LCP misses the 2.5 s target: observed LCP is ~0.4 s, but Lighthouse's simulation puts the six preloaded `optional` fonts (251 KB) in the LCP dependency graph because they finish before the hero paints on the local server. Removing the preloads or `text-wrap` did not move the number; only a different font strategy would, which is a design decision left as is. On the post page at the mobile viewport the collapsed ToC brings the lede into the first screen, so it, not the two-line h1, is the largest text element; both paint in the same frame. Full detail, per-check tables and screenshot list: `.agents/tasks/ui-v2/verification-phase1.md` (local artifact, not committed).
+
+---
+
+# Live verification — 2026-10-08 (v1)
 
 Verified against the deployed GitHub Pages site in a fresh headless Microsoft Edge context (Playwright, `device_scale_factor=1`, `reduced_motion="reduce"`), after the `Deploy to GitHub Pages` workflow run for commit `b5dff4f` finished.
 

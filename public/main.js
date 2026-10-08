@@ -21,13 +21,16 @@
       return root.getAttribute("data-theme") === "dark" ? "dark" : "light";
     };
 
-    var render = function () {
+    // withMetas: the inline pre-paint script already set both metas on load, so
+    // the start-up call only fixes the label (reading --bg would force a style pass).
+    var render = function (withMetas) {
       var isDark = current() === "dark";
       // Label names the theme the button will switch to.
       toggle.setAttribute(
         "aria-label",
         toggle.getAttribute(isDark ? "data-light-label" : "data-dark-label")
       );
+      if (!withMetas) return;
       if (schemeMeta) schemeMeta.content = isDark ? "dark" : "light";
       if (colorMeta) {
         // Source of truth is the --bg token in styles.css; literals are a fallback only.
@@ -46,11 +49,11 @@
       } catch (e) {
         /* storage unavailable */
       }
-      render();
+      render(true);
     };
     toggle.addEventListener("click", theme.toggle);
 
-    render();
+    render(false);
     toggle.disabled = false;
   }
 
@@ -61,7 +64,8 @@
       (navigator.userAgentData && navigator.userAgentData.platform) ||
       navigator.platform ||
       "";
-    if (/Mac|iPhone|iPad/.test(platform)) {
+    // userAgentData reports "macOS", navigator.platform "MacIntel": match both.
+    if (/mac|iphone|ipad/i.test(platform)) {
       for (var p = 0; p < kbds.length; p++) kbds[p].textContent = "\u2318 K";
     }
   }
@@ -70,7 +74,13 @@
   var header = document.querySelector(".site-header");
   if (header) {
     var setHeaderHeight = function () {
-      root.style.setProperty("--header-h", header.offsetHeight + "px");
+      var measured = header.offsetHeight;
+      // The stylesheet already states the normal height (registered <length>, so
+      // it computes to px). Writing a :root custom property restyles the whole
+      // tree and moves the hero, so only write when the CSS value is off.
+      var declared = parseFloat(getComputedStyle(root).getPropertyValue("--header-h"));
+      if (Math.abs(declared - measured) < 0.5) return;
+      root.style.setProperty("--header-h", measured + "px");
     };
     var hhFrame = null;
     window.addEventListener("resize", function () {
@@ -80,9 +90,16 @@
         setHeaderHeight();
       });
     });
-    setHeaderHeight();
+    // Measure after the next frame has painted so this script never forces the
+    // document's first layout (the CSS value is right for the normal cases).
+    var measureAfterPaint = function () {
+      requestAnimationFrame(function () {
+        setTimeout(setHeaderHeight, 0);
+      });
+    };
+    measureAfterPaint();
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(setHeaderHeight);
+      document.fonts.ready.then(measureAfterPaint);
     }
   }
 
