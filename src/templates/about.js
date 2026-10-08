@@ -33,10 +33,10 @@ ${pillars}
 
   <h2>के बनावेला</h2>
   <p>${escapeHtml(config.author.name)}। हम <a href="${config.bhojverseUrl}" rel="noopener">BhojVerse</a> नाम के भोजपुरी सीखे वाला ऐप भी बनवले बानी — ई साइट ओही बनावे वाला के ओर से बा। हमार कोड <a href="${config.author.github}" rel="noopener">GitHub</a> पर आ बाकी बात <a href="${config.author.site}" rel="noopener">sudish.dev</a> पर मिली।</p>
-  <p>छोट-छोट बतकही रोज Instagram पर: <a href="${config.instagramUrl}" rel="noopener">${escapeHtml(config.instagramHandle)}</a>।</p>
+  <p>छोट-छोट बतकही Instagram पर भी: <a href="${config.instagramUrl}" rel="noopener">${escapeHtml(config.instagramHandle)}</a>।</p>
 
   <h2>एगो ईमानदार बात</h2>
-  <p>इहाँ के हर संख्या असली बा आ हर दावा के पीछे कवनो स्रोत बा। जहाँ हमरा पक्का ना मालूम, उहाँ हम कम कहब, बनावब ना। भोजपुरी लिखाई में कवनो चूक लागे त Instagram पर बताईं — सुधार होई।</p>
+  <p>जहाँ हमरा पक्का ना मालूम, उहाँ हम कम कहब, बनावब ना। भोजपुरी लिखाई में कवनो चूक लागे त Instagram पर बताईं — सुधार होई।</p>
 </article>`;
 
   return layout({

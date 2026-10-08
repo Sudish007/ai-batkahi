@@ -16,10 +16,20 @@
       return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     };
 
+    var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+
     var render = function () {
       var isDark = currentTheme() === "dark";
       // Label names the theme the button will switch to.
       toggle.textContent = isDark ? lightLabel : darkLabel;
+      // Keep browser UI colour in step with an explicit choice (both media-gated
+      // metas get the same value so whichever one matches is correct).
+      if (root.hasAttribute("data-theme")) {
+        var bg = isDark ? "#15130F" : "#FAF6EF";
+        for (var m = 0; m < themeMetas.length; m++) {
+          themeMetas[m].setAttribute("content", bg);
+        }
+      }
     };
 
     toggle.addEventListener("click", function () {
