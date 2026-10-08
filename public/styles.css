@@ -1805,7 +1805,8 @@ main.post-wrap {
   cursor: pointer;
 }
 
-.shortcuts-toggle[aria-pressed="false"] ~ .chord-hints,
+/* main.js toggles the class (the hints precede the button in the DOM, so a
+   sibling combinator could never reach them). */
 .palette-hints.shortcuts-off .chord-hints {
   display: none;
 }

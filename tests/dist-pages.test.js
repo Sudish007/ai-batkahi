@@ -150,6 +150,49 @@ test("every post page: one share block, details ToC with In English, progress ba
   }
 });
 
+test("inline scripts: the pre-paint script everywhere, the ToC collapse only right after details on posts", () => {
+  const tocScript = '<script>if(!matchMedia("(min-width: 75em)").matches)document.querySelector(".toc-wrap").open=false;</script>';
+  for (const file of htmlFiles()) {
+    const html = read(file);
+    const inline = html.match(/<script>[\s\S]*?<\/script>/g) || [];
+    const isPost = /[\\/]posts[\\/][^\\/]+[\\/]index\.html$/.test(file);
+    assert.equal(inline.length, isPost ? 2 : 1, `${file}: inline script count`);
+    assert.ok(inline[0].includes('localStorage.getItem("theme")'), `${file}: first inline script is the pre-paint script`);
+    if (isPost) {
+      assert.equal(inline[1], tocScript, `${file}: ToC collapse script`);
+      assert.match(html, /<\/details>\s*<script>if\(!matchMedia/, `${file}: ToC script follows the details`);
+    } else {
+      assert.ok(!html.includes(".toc-wrap"), `${file}: ToC markup on a non-post page`);
+    }
+    for (const s of inline) assert.ok(!s.includes("prefers-color-scheme"), `${file}: inline script reads the OS scheme`);
+  }
+});
+
+test("a category without posts appears nowhere except the About pillar list", () => {
+  const active = new Set(activeCategorySlugs());
+  const inactive = categories.filter((c) => !active.has(c.slug));
+  const search = JSON.parse(read(join(DIST, "search.json")));
+  const sitemap = read(join(DIST, "sitemap.xml"));
+  for (const { slug, name } of inactive) {
+    // The name as an element's whole text (heading, chip, link); prose may use the word.
+    const asLabel = `>${name}<`;
+    for (const rel of ["index.html", join("posts", "index.html"), "404.html"]) {
+      const html = read(join(DIST, rel));
+      assert.ok(!html.includes(slug), `${rel}: slug ${slug}`);
+      assert.ok(!html.includes(asLabel), `${rel}: label ${name}`);
+    }
+    for (const file of htmlFiles()) {
+      // Chrome = everything outside <main>: header, footer, palette.
+      const chrome = read(file).replace(/<main[\s\S]*<\/main>/, "");
+      assert.ok(!chrome.includes(slug) && !chrome.includes(asLabel), `${file}: ${slug} in the chrome`);
+    }
+    assert.ok(!sitemap.includes(`/category/${slug}/`), `sitemap: ${slug}`);
+    assert.ok(search.posts.every((p) => p.category !== slug), `search.json: ${slug}`);
+    const about = read(join(DIST, "about", "index.html"));
+    assert.ok(about.includes(`<dt>${name} <span class="pillar-note">अबहीं पोस्ट नइखे</span>`), `about: ${slug} labelled`);
+  }
+});
+
 test("related-by-tags: llm-kaise-bolela lists the two ChatGPT posts; career post has none", () => {
   const post = read(join(DIST, "posts", "llm-kaise-bolela", "index.html"));
   const related = post.match(/<section class="related" aria-labelledby="related-heading">[\s\S]*?<\/section>/);

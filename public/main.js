@@ -515,8 +515,13 @@
       }
     };
 
+    // Focus goes back to the invoker synchronously: the dialog's "close" event
+    // is dispatched in a later task, so waiting for it alone leaves the input
+    // focused for a tick (the close listener below still covers native cancel).
     var closePalette = function () {
-      if (dialog.open) dialog.close();
+      if (!dialog.open) return;
+      dialog.close();
+      if (invoker && invoker.focus) invoker.focus();
     };
 
     var move = function (delta, absolute) {
