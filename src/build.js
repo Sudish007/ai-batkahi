@@ -88,9 +88,10 @@ function loadPosts() {
 
   // Newest first; tie-break by filename ascending (01- before 02-).
   posts.sort((a, b) => (a.date === b.date ? a.file.localeCompare(b.file) : b.date.localeCompare(a.date)));
+  // prev/next follow list (reading) order: previous = item above, next = item below.
   posts.forEach((p, i) => {
-    p.prev = posts[i + 1] || null; // older
-    p.next = posts[i - 1] || null; // newer
+    p.prev = posts[i - 1] || null;
+    p.next = posts[i + 1] || null;
   });
   return posts;
 }
