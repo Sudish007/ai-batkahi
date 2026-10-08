@@ -1,12 +1,14 @@
-/* AI Batkahi — editorial paper theme. One accent (deep madder red), hairline rules,
-   flat surfaces only. Font URLs use __BASE__ which the build rewrites to basePath. */
+/* AI Batkahi v2 — editorial paper theme. One accent (deep madder red), hairline
+   rules, flat surfaces only; grain is a baked PNG tile. Light is the default for
+   every visitor; dark is a stored choice (html[data-theme="dark"]) and never read
+   from the OS. Font URLs use __BASE__ which the build rewrites to basePath. */
 
 /* ---------- Fonts (self-hosted, devanagari + latin subsets) ---------- */
 @font-face {
   font-family: "Tiro Devanagari Hindi";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/tiro-devanagari-hindi-devanagari-400-normal.woff2) format("woff2");
   unicode-range: U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09;
 }
@@ -14,7 +16,7 @@
   font-family: "Tiro Devanagari Hindi";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/tiro-devanagari-hindi-latin-400-normal.woff2) format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
@@ -22,7 +24,7 @@
   font-family: "Noto Sans Devanagari";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/noto-sans-devanagari-devanagari-400-normal.woff2) format("woff2");
   unicode-range: U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09;
 }
@@ -30,7 +32,7 @@
   font-family: "Noto Sans Devanagari";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/noto-sans-devanagari-devanagari-700-normal.woff2) format("woff2");
   unicode-range: U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09;
 }
@@ -38,7 +40,7 @@
   font-family: "Noto Sans Devanagari";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/noto-sans-devanagari-latin-400-normal.woff2) format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
@@ -46,14 +48,14 @@
   font-family: "Noto Sans Devanagari";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
   src: url(__BASE__fonts/noto-sans-devanagari-latin-700-normal.woff2) format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
 /* ---------- Tokens ---------- */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #FAF6EF;
   --bg-alt: #F1EBE0;
   --ink: #1F1B17;
@@ -62,31 +64,36 @@
   --accent: #8E2A1C;
   --accent-hover: #6E2015;
   --focus: #1F1B17;
+  --scrim: rgba(31, 27, 23, 0.45);
 
   --font-serif: "Tiro Devanagari Hindi", "Noto Serif Devanagari", "Kohinoor Devanagari", serif;
   --font-sans: "Noto Sans Devanagari", "Mukta", "Nirmala UI", system-ui, sans-serif;
   --font-mono: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace;
 
-  --fs-xs: 0.8125rem;   /* 13px */
-  --fs-sm: 0.9375rem;   /* 15px */
-  --fs-base: 1.0625rem; /* 17px */
-  --fs-lg: 1.25rem;     /* 20px */
-  --fs-h3: 1.375rem;    /* 22px */
-  --fs-h2: 1.75rem;     /* 28px */
-  --fs-h1: 2.25rem;     /* 36px */
-  --fs-display: 2.75rem;/* 44px */
+  /* rem steps on the fluid root (html font-size below); only the two vw clamps
+     scale a second time. */
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.9375rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-h3: 1.375rem;
+  --fs-h2: 1.875rem;
+  --fs-h1: 3rem;
+  --fs-pull: 1.75rem;
+  --fs-tagline: 1.5rem;
+  --fs-slot: clamp(2rem, 1.25rem + 2.8vw, 3.5rem);
+  --fs-display: clamp(4rem, 15vw, 30rem);
 
   --lh-body: 1.75;
-  --lh-heading: 1.3;
+  --lh-heading: 1.25;
+  --lh-display: 1.12;
   --lh-tight: 1.5;
 
-  --measure: 66ch;
-  --container: 72rem;
+  --measure: 72ch;
+  --gutter: clamp(16px, 4vw, 96px);
   --control: 44px;
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
+  --header-h: 7rem;
+  --space-section: 4rem;
 }
 
 :root[data-theme="dark"] {
@@ -99,25 +106,13 @@
   --accent: #E3917F;
   --accent-hover: #F0AC9D;
   --focus: #ECE5D9;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #15130F;
-    --bg-alt: #1F1B16;
-    --ink: #ECE5D9;
-    --ink-muted: #A89E90;
-    --rule: #342F28;
-    --accent: #E3917F;
-    --accent-hover: #F0AC9D;
-    --focus: #ECE5D9;
-  }
+  --scrim: rgba(0, 0, 0, 0.6);
 }
 
 @media (min-width: 48em) {
   :root {
-    --fs-base: 1.125rem; /* 18px */
+    --header-h: 4.75rem;
+    --space-section: 6rem;
   }
 }
 
@@ -135,10 +130,12 @@
 }
 
 html {
+  font-size: clamp(1.0625rem, 0.95rem + 0.3vw, 1.375rem);
   background: var(--bg);
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scroll-padding-top: 5rem;
 }
 
 body {
@@ -146,18 +143,26 @@ body {
   font-family: var(--font-sans);
   font-size: var(--fs-base);
   line-height: var(--lh-body);
-  background: var(--bg);
+  /* Paper grain: one baked 256px raster tile, mid-grey at <= 12/255 alpha, so
+     it darkens paper and lightens night without a second asset. */
+  background: var(--bg) url(__BASE__grain.png) repeat;
   color: var(--ink);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   overflow-wrap: break-word;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none; /* Tiro ships 400 only; never fake a bold or italic */
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
 }
 
 main {
   flex: 1 0 auto;
   width: 100%;
-  padding-block: 2rem 4rem;
 }
 
 main:focus {
@@ -201,6 +206,7 @@ h4 {
   line-height: var(--lh-heading);
   margin: 0;
   overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 h1 {
@@ -217,19 +223,13 @@ h3 {
 
 p {
   margin: 0 0 1.25em;
+  text-wrap: pretty;
 }
 
+/* Fluid container: a viewport fraction at every width, never a fixed cap. */
 .container {
-  width: 100%;
-  max-width: var(--container);
+  width: calc(100% - 2 * var(--gutter));
   margin-inline: auto;
-  padding-inline: 1rem;
-}
-
-@media (min-width: 48em) {
-  .container {
-    padding-inline: 2rem;
-  }
 }
 
 .visually-hidden {
@@ -245,12 +245,29 @@ p {
   border: 0;
 }
 
+/* Eyebrow: small tracked sans label, the editorial counterweight to the serif. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: var(--lh-tight);
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.eyebrow [lang="en"] {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: var(--fs-xs);
+}
+
 /* ---------- Skip link ---------- */
 .skip-link {
   position: absolute;
   top: 0.5rem;
   left: 0.5rem;
-  z-index: 10;
+  z-index: 50;
   padding: 0.75rem 1rem;
   background: var(--ink);
   color: var(--bg);
@@ -274,9 +291,8 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.25rem 1.5rem;
-  padding-block: 0.75rem;
+  gap: 0 1.5rem;
+  padding-block: 0.625rem;
 }
 
 .masthead {
@@ -289,6 +305,7 @@ p {
   font-family: var(--font-serif);
   min-height: var(--control);
   line-height: var(--lh-heading);
+  view-transition-name: masthead;
 }
 
 .masthead:hover {
@@ -312,6 +329,11 @@ p {
   padding-top: 0.1em;
 }
 
+.site-nav {
+  order: 2;
+  margin-left: auto;
+}
+
 .site-nav ul {
   list-style: none;
   margin: 0;
@@ -319,12 +341,11 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 0.25rem;
-  margin-inline: -0.75rem;
+  gap: 0 0.5rem;
 }
 
-.site-nav a,
-.theme-toggle {
+.nav-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: var(--control);
@@ -335,23 +356,136 @@ p {
   white-space: nowrap;
 }
 
-.site-nav a:hover {
+.nav-link:hover {
   color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
 }
 
-.theme-toggle {
+.tools {
+  order: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Icon buttons (search, theme): 44px square, hairline ring on hover only. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: var(--control);
+  min-height: var(--control);
+  padding: 0 0.6rem;
   background: none;
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
   border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
   cursor: pointer;
-  margin-left: 0.5rem;
-  padding: 0 0.9rem;
+  font-size: var(--fs-sm);
 }
 
-.theme-toggle:hover {
-  border-color: var(--ink);
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.icon-btn:hover {
+  border-color: var(--rule);
+  color: var(--accent);
+}
+
+.icon-btn:disabled {
+  cursor: default;
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--ink-muted);
+}
+
+@media (min-width: 48em) {
+  .icon-btn.search-btn {
+    padding-inline: 0.9rem 0.5rem;
+  }
+}
+
+/* Two rows below 48em: masthead + tools, then the text links. */
+@media (max-width: 47.99em) {
+  .header-inner {
+    row-gap: 0;
+  }
+
+  .masthead {
+    order: 1;
+  }
+
+  .tools {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .site-nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .site-nav ul {
+    margin-inline: -0.75rem;
+  }
+
+  .kbd {
+    display: none;
+  }
+
+  .search-label {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* Sun/moon morph: geometry properties move, the mask circle slides over the disc. */
+.sunmoon .mask-dot {
+  cx: 30px;
+  cy: 2px;
+  r: 7px;
+}
+
+.sunmoon .disc {
+  r: 5.5px;
+}
+
+.sunmoon .rays {
+  transform-origin: 12px 12px;
+}
+
+:root[data-theme="dark"] .sunmoon .mask-dot {
+  cx: 16px;
+  cy: 8px;
+}
+
+:root[data-theme="dark"] .sunmoon .disc {
+  r: 8px;
+}
+
+:root[data-theme="dark"] .sunmoon .rays {
+  opacity: 0;
+  transform: scale(0.4) rotate(-40deg);
 }
 
 /* ---------- Footer ---------- */
@@ -398,111 +532,319 @@ p {
   color: var(--accent);
 }
 
-/* ---------- Home ---------- */
-.hero {
-  padding-block: 1.5rem 2.5rem;
-  border-bottom: 1px solid var(--rule);
-  max-width: var(--measure);
-}
-
-.display {
-  font-size: var(--fs-display);
-  line-height: 1.2;
-}
-
-.display-dev {
-  display: block;
-  font-size: var(--fs-h2);
-  color: var(--ink-muted);
-  margin-top: 0.15em;
-}
-
-.tagline {
-  font-family: var(--font-serif);
-  font-size: var(--fs-lg);
-  color: var(--ink-muted);
-  margin: 1rem 0 1.25rem;
-}
-
-.intro {
-  margin: 0;
-}
-
-.latest {
-  max-width: var(--measure);
-}
-
-.section-title {
-  font-size: var(--fs-sm);
-  font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--ink-muted);
-  margin: 2.5rem 0 0.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--rule);
-}
-
-.cta {
-  margin-top: 3rem;
-  padding: 1.25rem 1.5rem;
+/* ---------- Chips ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 1rem;
+  background: none;
   border: 1px solid var(--rule);
-  max-width: var(--measure);
-}
-
-.cta p {
-  margin: 0;
-}
-
-.cta a {
-  display: inline-block;
-  padding-block: 0.6rem;
-}
-
-/* ---------- Post list ---------- */
-.post-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-width: var(--measure);
-}
-
-.post-item {
-  padding-block: 1.5rem;
-  border-bottom: 1px solid var(--rule);
-}
-
-.post-item:last-child {
-  border-bottom: 0;
-}
-
-.post-item-title {
-  font-size: var(--fs-h3);
-  margin-bottom: 0.2em;
-}
-
-.post-item-title a {
+  border-radius: 999px;
+  font-size: var(--fs-sm);
   color: var(--ink);
   text-decoration: none;
 }
 
+.pill:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.tags {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tags li {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+/* ---------- Hero (home) ----------
+   Full viewport up to a 960px cap (px on purpose so it does not grow with the
+   fluid root): at 1440x900 the hero fills the fold, at 2560x1440 the first list
+   row sits above it. --header-h is overwritten by main.js from the real header. */
+.hero {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: min(calc(100vh - var(--header-h)), 960px);
+  min-height: min(calc(100svh - var(--header-h)), 960px);
+  padding-block: 1.5rem 1.25rem;
+}
+
+.dict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.75rem;
+}
+
+.dict-word {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: var(--fs-lg);
+  color: var(--ink);
+  letter-spacing: 0;
+}
+
+.dict .dict-pron {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.dict .dict-gloss {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.dict .dict-gloss::before {
+  content: "n. ";
+  font-family: var(--font-serif);
+}
+
+.hero-main {
+  align-self: center;
+  padding-block: clamp(1.5rem, 5vh, 4rem);
+}
+
+.display {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: 0;
+  margin: 0 0 0.25em -0.03em; /* optical left align of the first letter */
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.tagline {
+  font-family: var(--font-serif);
+  font-size: var(--fs-tagline);
+  line-height: var(--lh-heading);
+  color: var(--ink-muted);
+  margin: 0 0 2rem;
+  max-width: 30ch;
+}
+
+/* Kinetic word slot: every word is stacked in one grid cell so the slot is as
+   wide as its widest word and never shifts layout. Inactive words are hidden
+   with visibility (layout kept); the active word carries data-on in the HTML,
+   so the first word is visible with no JS and under reduced motion. */
+.slot-line {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.slot-frame {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: var(--lh-tight);
+  margin-bottom: 0.25rem;
+}
+
+.slot {
+  display: inline-grid;
+  align-items: baseline;
+  margin: 0 0 0 -0.04em;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  border: 0;
+  background: none;
+  min-height: var(--control);
+  color: var(--ink);
+  text-align: left;
+  cursor: default;
+  font: inherit;
+}
+
+.slot:not(:disabled) {
+  cursor: pointer;
+}
+
+.slot:disabled {
+  color: var(--ink);
+}
+
+.slot-item {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.75rem;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.slot-item[data-on] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.slot-word {
+  font-family: var(--font-serif);
+  font-size: var(--fs-slot);
+  line-height: var(--lh-heading);
+}
+
+.slot-gloss {
+  font-family: var(--font-sans);
+  font-size: var(--fs-lg);
+  color: var(--ink-muted);
+}
+
+.slot-gloss::before {
+  content: "\2192\00a0"; /* rightwards arrow + nbsp */
+  color: var(--accent);
+}
+
+.hero-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 2rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.75rem;
+}
+
+.scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--control);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.scroll-cue:hover {
+  color: var(--accent);
+}
+
+.scroll-cue .arrow {
+  color: var(--accent);
+  font-family: var(--font-sans);
+}
+
+.hero-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: var(--lh-tight);
+}
+
+.hero-facts span + span::before {
+  content: "\00b7"; /* middle dot */
+  margin-right: 1.25rem;
+  color: var(--ink-muted);
+}
+
+/* ---------- Sections (home) ---------- */
+.section {
+  padding-block: var(--space-section) 0;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.section-head h2 {
+  font-size: var(--fs-h2);
+}
+
+.section-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding-inline: 0.5rem;
+  margin-inline: -0.5rem;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+
+.section-head a:hover {
+  color: var(--accent);
+}
+
+.intro {
+  font-size: var(--fs-lg);
+  max-width: var(--measure);
+  margin: 1rem 0 0;
+}
+
+/* ---------- Post cards ---------- */
+.post-grid {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.post-grid .post-item {
+  border: 1px solid var(--rule);
+  padding: 1.5rem;
+}
+
+.post-item-title {
+  font-size: var(--fs-h2);
+  margin: 0;
+}
+
+/* Inline-block with negative margins: 44px+ hit height without moving the text. */
+.post-item-title a {
+  display: inline-block;
+  padding-block: 0.2em;
+  margin-block: -0.2em;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.12em;
+}
+
 .post-item-title a:hover {
   color: var(--accent);
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .title-en {
   font-size: var(--fs-sm);
   color: var(--ink-muted);
   line-height: var(--lh-tight);
-  margin: 0 0 0.5rem;
+  margin: 0;
 }
 
 .meta {
   font-size: var(--fs-sm);
   line-height: var(--lh-tight);
   color: var(--ink-muted);
-  margin: 0 0 0.75rem;
+  margin: 0.25rem 0 0.5rem;
 }
 
 /* Inline category link keeps its text position but gets a 44px+ hit area. */
@@ -511,14 +853,17 @@ p {
   display: inline-block;
   padding: 0.75rem 0.5rem;
   margin: -0.75rem -0.5rem;
+  text-decoration: none;
 }
 
 .meta a:hover {
   color: var(--accent);
+  text-decoration: underline;
 }
 
 .summary {
   margin: 0;
+  max-width: var(--measure);
 }
 
 .empty {
@@ -526,7 +871,112 @@ p {
   padding-block: 2rem;
 }
 
-/* ---------- Page header ---------- */
+/* Bento: 1 / 2 / 3 / 4 columns; the newest post spans two cells from 1600px. */
+.post-grid.bento {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .post-grid.bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .post-grid.bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .post-grid.bento > li:first-child {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 2200px) {
+  .post-grid.bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Pillar strip (home) ---------- */
+.vishay {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.5rem;
+}
+
+.vishay a {
+  display: block;
+  height: 100%;
+  padding: 1.5rem;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.vishay a:hover {
+  border-color: var(--ink);
+}
+
+.vishay a:hover h3 {
+  color: var(--accent);
+}
+
+.vishay h3 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h2);
+  margin-bottom: 0.5rem;
+}
+
+.vishay p {
+  margin: 0 0 0.75rem;
+}
+
+.vishay-count {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+/* ---------- Instagram aside (home) ---------- */
+.cta {
+  margin-top: var(--space-section);
+  padding-block: 2rem;
+  border-top: 1px solid var(--rule);
+}
+
+.cta .eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.cta p {
+  margin: 0;
+}
+
+.cta p a {
+  display: inline-block;
+  padding-block: 0.6rem;
+}
+
+.insta-handle {
+  display: inline-block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-heading);
+  color: var(--ink);
+  text-decoration: none;
+  padding-block: 0.2em;
+  margin-bottom: 0.5rem;
+}
+
+.insta-handle:hover {
+  color: var(--accent);
+}
+
+/* ---------- v1 page rules (post, index, about, 404) — replaced in FEAT-003 ---------- */
 .page-header {
   padding-block: 1rem 1.5rem;
   border-bottom: 1px solid var(--rule);
@@ -559,7 +1009,10 @@ p {
   vertical-align: middle;
 }
 
-/* ---------- Filter ---------- */
+main.container {
+  padding-block: 2rem 4rem;
+}
+
 .filter {
   margin: 1rem 0 0.5rem;
   max-width: var(--measure);
@@ -603,7 +1056,6 @@ p {
   min-height: 1.5em;
 }
 
-/* ---------- Post ---------- */
 .post-header {
   padding-block: 1rem 1.5rem;
   border-bottom: 1px solid var(--rule);
@@ -707,24 +1159,6 @@ p {
   border-top: 1px solid var(--rule);
 }
 
-.tags {
-  list-style: none;
-  margin: 0 0 1.25rem;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.tags li {
-  font-size: var(--fs-xs);
-  line-height: var(--lh-tight);
-  padding: 0.35rem 0.75rem;
-  background: var(--bg-alt);
-  border-radius: 999px;
-  color: var(--ink);
-}
-
 .share {
   display: flex;
   flex-wrap: wrap;
@@ -794,7 +1228,6 @@ p {
 
 .post-nav a:hover .post-nav-title {
   color: var(--accent);
-  text-decoration: underline;
 }
 
 .post-nav-label {
@@ -805,12 +1238,12 @@ p {
 }
 
 .post-nav-title {
+  position: relative;
   font-family: var(--font-serif);
   font-size: var(--fs-lg);
   line-height: var(--lh-heading);
 }
 
-/* ---------- About ---------- */
 .about .page-header {
   margin-bottom: 0;
 }
@@ -848,7 +1281,6 @@ p {
   margin: 0.3rem 0 0;
 }
 
-/* ---------- 404 ---------- */
 .not-found {
   max-width: var(--measure);
   padding-block: 2rem;
@@ -881,11 +1313,149 @@ p {
   border-color: var(--ink);
 }
 
-/* ---------- Motion ---------- */
+/* ---------- Print ---------- */
+@media print {
+  .tools,
+  .progress,
+  .palette,
+  .skip-link {
+    display: none;
+  }
+
+  .reveal {
+    opacity: 1 !important;
+    translate: none;
+    animation: none;
+  }
+}
+
+/* ---------- Motion (everything gated; this is the only block) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   a,
   button,
-  .masthead {
-    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  .masthead,
+  .icon-btn {
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, text-decoration-color 200ms ease;
+  }
+
+  .sunmoon .mask-dot {
+    transition: cx 320ms cubic-bezier(0.2, 0.7, 0.2, 1), cy 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .sunmoon .disc {
+    transition: r 320ms ease;
+  }
+
+  .sunmoon .rays {
+    transition: opacity 240ms ease, transform 320ms ease;
+  }
+
+  /* Scroll-driven reveals: default state is visible. Only when the browser
+     supports view() timelines, or JS has taken over with IntersectionObserver,
+     does an element start transparent. Nothing in the hero uses .reveal. */
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
+
+  html.js.no-sda .reveal {
+    opacity: 0;
+    translate: 0 14px;
+    transition: opacity 500ms ease-out, translate 500ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  html.js.no-sda .reveal.is-in {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  .slot-item {
+    transition: opacity 420ms ease, visibility 0s linear 420ms, translate 420ms ease;
+    translate: 0 6px;
+  }
+
+  .slot-item[data-on] {
+    transition-delay: 0s;
+    translate: 0 0;
+  }
+
+  .hero .tagline,
+  .hero .slot-line {
+    animation: rise 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .hero .slot-line {
+    animation-delay: 80ms;
+  }
+
+  /* Underline draw on nav links and prev/next titles (pointer devices only). */
+  @media (hover: hover) {
+    .nav-link::after,
+    .post-nav-title::after {
+      content: "";
+      position: absolute;
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: 0.55rem;
+      height: 1px;
+      background: currentColor;
+      transform: scaleX(0);
+      transform-origin: 0 50%;
+      transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    .post-nav-title::after {
+      left: 0;
+      right: 0;
+      bottom: -2px;
+    }
+
+    .post-nav-next .post-nav-title::after {
+      transform-origin: 100% 50%;
+    }
+
+    .nav-link:hover::after,
+    .post-nav a:hover .post-nav-title::after {
+      transform: scaleX(1);
+    }
+  }
+
+  @view-transition {
+    navigation: auto;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+  }
+
+  ::view-transition-group(masthead),
+  ::view-transition-group(post-title) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* Translate-only entrance: opacity stays 1 so the hero paints immediately (LCP). */
+@keyframes rise {
+  from {
+    translate: 0 10px;
+  }
+  to {
+    translate: 0 0;
   }
 }
