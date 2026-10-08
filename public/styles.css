@@ -1307,8 +1307,9 @@ main.post-wrap {
   color: var(--ink-muted);
 }
 
-/* Rail: below 100em it flows under the body as a plain block and its meta
-   eyebrow and In English link are hidden (they duplicate what is on screen). */
+/* Rail: below 100em it flows under the body as a plain block and its In
+   English link is hidden (the section is right above it). The article meta
+   lives only in the header, so the rail starts with that link. */
 .post-rail {
   margin-top: 2.5rem;
   padding-top: 1.5rem;
@@ -1316,25 +1317,8 @@ main.post-wrap {
   font-size: var(--fs-sm);
 }
 
-.post-rail .rail-meta,
 .post-rail .rail-en {
   display: none;
-}
-
-.rail-meta {
-  margin-bottom: 0.75rem;
-}
-
-.rail-meta a {
-  color: var(--ink-muted);
-  display: inline-block;
-  padding: 0.75rem 0.25rem;
-  margin: -0.75rem -0.25rem;
-  text-decoration: none;
-}
-
-.rail-meta a:hover {
-  color: var(--accent);
 }
 
 .rail-en {
@@ -1523,9 +1507,11 @@ main.post-wrap {
   .toc-wrap {
     grid-column: 1;
     grid-row: 1 / span 3;
+    /* Shrink to the longest entry (capped below) so justify-self: end puts
+       the list itself, not an empty box, one column-gap from the text. */
     justify-self: end;
     align-self: start;
-    width: 100%;
+    width: fit-content;
     max-width: 16rem;
     margin: 0;
     padding: 0;
@@ -1576,10 +1562,6 @@ main.post-wrap {
 
   .toc-wrap {
     max-width: min(16rem, calc(100% - var(--gutter) - 0.5rem));
-  }
-
-  .post-rail .rail-meta {
-    display: block;
   }
 
   .post-rail .rail-en {

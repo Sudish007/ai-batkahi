@@ -140,6 +140,11 @@ test("every post page: one share block, details ToC with In English, progress ba
     assert.ok(details[0].includes('<nav class="toc" aria-label="एह बतकही में">'), file);
     assert.ok(html.includes('<div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>'), `${file}: progress`);
     assert.ok(html.includes('<aside class="post-rail" aria-label="एह बतकही के बारे में">'), `${file}: rail`);
+    // The meta line (category · date · reading time) is shown once, above the
+    // title; the rail starts with the In English link.
+    assert.equal((html.match(/पढ़े में ~\d+ मिनट/g) || []).length, 1, `${file}: meta line count`);
+    assert.ok(!html.includes("rail-meta"), `${file}: rail-meta`);
+    assert.match(html, /<aside class="post-rail"[^>]*>\s*<a class="rail-en" href="#in-english-heading">In English पढ़ीं<\/a>/, `${file}: rail starts with In English`);
     assert.match(html, /<main id="main" class="container post-wrap" tabindex="-1">/, file);
     assert.match(html, /<h1>[^<]+<\/h1>\s*<p class="title-en" lang="en">/, file);
     assert.ok(html.includes('<p class="eyebrow"><span lang="en">Summary</span></p>'), `${file}: Summary eyebrow`);
