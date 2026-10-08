@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { DIST, htmlFiles, read } from "./helpers.js";
+import { DIST, htmlFiles, read, contentPosts } from "./helpers.js";
 
 const postDirs = readdirSync(join(DIST, "posts"), { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
 
-test("there are six post pages", () => {
-  assert.equal(postDirs.length, 6);
+test("there is one post page per non-draft content post", () => {
+  assert.equal(postDirs.length, contentPosts().length);
 });
 
 for (const slug of postDirs) {

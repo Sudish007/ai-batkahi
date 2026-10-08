@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { XMLValidator, XMLParser } from "fast-xml-parser";
 import config from "../site.config.js";
-import { DIST, read } from "./helpers.js";
+import categories from "../content/categories.js";
+import { DIST, read, activeCategorySlugs } from "./helpers.js";
 
 const feed = read(join(DIST, "feed.xml"));
 const sitemap = read(join(DIST, "sitemap.xml"));
@@ -35,7 +36,7 @@ test("feed entry links to other posts are absolute", () => {
   assert.ok(!feed.includes(`href=&quot;${config.basePath}`), "basePath-relative link leaked into feed");
 });
 
-test("sitemap.xml is well-formed with absolute <loc> values and no khabar", () => {
+test("sitemap.xml is well-formed with absolute <loc> values and no inactive category", () => {
   assert.equal(XMLValidator.validate(sitemap), true);
   const doc = new XMLParser().parse(sitemap);
   const urls = [].concat(doc.urlset.url);
@@ -43,7 +44,10 @@ test("sitemap.xml is well-formed with absolute <loc> values and no khabar", () =
   for (const u of urls) {
     assert.ok(String(u.loc).startsWith(config.siteUrl), `loc absolute: ${u.loc}`);
   }
-  assert.ok(!sitemap.includes("/category/khabar/"));
+  const active = new Set(activeCategorySlugs());
+  for (const { slug } of categories) {
+    assert.equal(sitemap.includes(`/category/${slug}/`), active.has(slug), slug);
+  }
 });
 
 test("robots.txt allows all and points at the sitemap", () => {

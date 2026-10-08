@@ -7,9 +7,10 @@ export function aboutPage({ activeCategories, allCategories }) {
   const activeSlugs = new Set(activeCategories.map((c) => c.slug));
   const pillars = allCategories
     .map((c) => {
+      // A pillar with zero posts has no page: plain text, never an <a>.
       const name = activeSlugs.has(c.slug)
         ? `<a href="${url(`category/${c.slug}/`)}">${escapeHtml(c.name)}</a>`
-        : escapeHtml(c.name);
+        : `${escapeHtml(c.name)} <span class="pillar-note">अबहीं पोस्ट नइखे</span>`;
       return `    <div class="pillar">
       <dt>${name} <span class="slug-hint" lang="en">${escapeHtml(c.slug)}</span></dt>
       <dd>${escapeHtml(c.description)}</dd>

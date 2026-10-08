@@ -4,7 +4,8 @@ import { escapeHtml } from "../lib/xml.js";
 import { layout } from "./layout.js";
 import { metaLine } from "./partials.js";
 
-export function postPage({ post, prev, next }) {
+// related ([{ post, shared }]) is accepted now; the markup uses it in FEAT-003.
+export function postPage({ post, prev, next, related = [] }) {
   const tags = post.tags.length
     ? `<ul class="tags" aria-label="टैग">
 ${post.tags.map((t) => `      <li>${escapeHtml(t)}</li>`).join("\n")}
