@@ -85,6 +85,10 @@
   --control: 44px;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #15130F;
@@ -122,6 +126,12 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* Author display rules (flex/inline-flex) would otherwise beat the UA [hidden] rule,
+   leaving JS-only controls visible when scripts are off. */
+[hidden] {
+  display: none !important;
 }
 
 html {
@@ -591,10 +601,6 @@ p {
   color: var(--ink-muted);
   margin: 0.75rem 0 0;
   min-height: 1.5em;
-}
-
-.filter-status:empty {
-  display: none;
 }
 
 /* ---------- Post ---------- */
