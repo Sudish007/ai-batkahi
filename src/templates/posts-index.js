@@ -1,7 +1,7 @@
 import { url } from "../lib/urls.js";
 import { escapeHtml } from "../lib/xml.js";
 import { layout } from "./layout.js";
-import { postList } from "./partials.js";
+import { postGrid } from "./partials.js";
 
 export function postsIndexPage({ posts, activeCategories }) {
   const filters = activeCategories
@@ -24,7 +24,7 @@ export function postsIndexPage({ posts, activeCategories }) {
   <p class="filter-status" role="status" aria-live="polite"></p>
 </nav>
 
-${postList(posts)}`;
+${postGrid(posts, { kind: "cards", headingLevel: 2 })}`;
 
   return layout({
     title: "सब बतकही",

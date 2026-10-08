@@ -6,8 +6,8 @@ export function notFoundPage() {
   <h1>ई पन्ना नइखे मिलल।</h1>
   <p class="lede">लिंक पुरान हो सकेला, या पता में कुछ चूक भइल बा।</p>
   <ul class="link-row">
-    <li><a href="${url("")}">घरे चलीं</a></li>
-    <li><a href="${url("posts/")}">सब बतकही</a></li>
+    <li><a class="pill" href="${url("")}">घरे चलीं</a></li>
+    <li><a class="pill" href="${url("posts/")}">सब बतकही</a></li>
   </ul>
 </section>`;
 

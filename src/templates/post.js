@@ -1,15 +1,21 @@
 import config from "../../site.config.js";
 import { url } from "../lib/urls.js";
 import { escapeHtml } from "../lib/xml.js";
+import { formatBhojpuriDate } from "../lib/dates.js";
 import { layout } from "./layout.js";
-import { metaLine } from "./partials.js";
 
-// related ([{ post, shared }]) is accepted now; the markup uses it in FEAT-003.
+// Eyebrow meta: category link · date · reading time. Used once in the centred
+// header (every width) and once in the right rail (shown only at >= 100em).
+function eyebrowMeta(post) {
+  return `<a href="${url(`category/${post.category.slug}/`)}">${escapeHtml(post.category.name)}</a> · <time datetime="${post.date}">${formatBhojpuriDate(post.date)}</time> · पढ़े में ~${post.minutes} मिनट`;
+}
+
+// related: [{ post, shared }] from relatedPosts(); empty -> no section.related.
 export function postPage({ post, prev, next, related = [] }) {
   const tags = post.tags.length
     ? `<ul class="tags" aria-label="टैग">
-${post.tags.map((t) => `      <li>${escapeHtml(t)}</li>`).join("\n")}
-    </ul>`
+${post.tags.map((t) => `        <li>${escapeHtml(t)}</li>`).join("\n")}
+      </ul>`
     : "";
 
   const instaHref = post.instagram || config.instagramUrl;
@@ -17,12 +23,41 @@ ${post.tags.map((t) => `      <li>${escapeHtml(t)}</li>`).join("\n")}
     ? `ई बतकही Instagram पर भी देखीं: ${escapeHtml(config.instagramHandle)}`
     : `छोट-छोट बतकही Instagram पर भी: ${escapeHtml(config.instagramHandle)}`;
 
+  // Native <details> works without JS (open by default); main.js collapses it
+  // below 75em and forces it open at >= 75em, where the summary is hidden and
+  // the plain p.toc-title is shown instead so the rail cannot be collapsed.
+  const toc = post.toc.length >= 2
+    ? `<details class="toc-wrap" open>
+    <summary class="toc-title eyebrow">एह बतकही में</summary>
+    <p class="toc-title eyebrow" aria-hidden="true">एह बतकही में</p>
+    <nav class="toc" aria-label="एह बतकही में">
+      <ol id="toc-list">
+${post.toc.map((t) => `        <li><a href="#${t.id}">${t.text}</a></li>`).join("\n")}
+        <li><a href="#in-english-heading" lang="en">In English</a></li>
+      </ol>
+    </nav>
+  </details>`
+    : "";
+
+  const relatedSection = related.length
+    ? `<section class="related" aria-labelledby="related-heading">
+      <h2 class="eyebrow" id="related-heading">मिलत-जुलत बतकही</h2>
+      <ul>
+${related
+  .map(
+    (r) => `        <li><article><h3 class="post-item-title"><a href="${url(`posts/${r.post.slug}/`)}">${escapeHtml(r.post.title)}</a></h3><p class="related-why">एही टैग पर: ${r.shared.map(escapeHtml).join(", ")}</p></article></li>`,
+  )
+  .join("\n")}
+      </ul>
+    </section>`
+    : "";
+
   const navItems = [];
   if (prev) {
-    navItems.push(`<a class="post-nav-prev" href="${url(`posts/${prev.slug}/`)}" rel="prev"><span class="post-nav-label">पिछला बतकही</span><span class="post-nav-title">${escapeHtml(prev.title)}</span></a>`);
+    navItems.push(`<a class="post-nav-prev" href="${url(`posts/${prev.slug}/`)}" rel="prev"><span class="eyebrow">पिछला बतकही</span><span class="post-nav-title">${escapeHtml(prev.title)}</span></a>`);
   }
   if (next) {
-    navItems.push(`<a class="post-nav-next" href="${url(`posts/${next.slug}/`)}" rel="next"><span class="post-nav-label">अगला बतकही</span><span class="post-nav-title">${escapeHtml(next.title)}</span></a>`);
+    navItems.push(`<a class="post-nav-next" href="${url(`posts/${next.slug}/`)}" rel="next"><span class="eyebrow">अगला बतकही</span><span class="post-nav-title">${escapeHtml(next.title)}</span></a>`);
   }
   const postNav = navItems.length
     ? `<nav class="post-nav" aria-label="आगे-पीछे">
@@ -32,29 +67,40 @@ ${navItems.join("\n")}
 
   const body = `<article class="post">
   <header class="post-header">
+    <p class="eyebrow">${eyebrowMeta(post)}</p>
     <h1>${escapeHtml(post.title)}</h1>
     <p class="title-en" lang="en">${escapeHtml(post.title_en)}</p>
-    ${metaLine(post)}
   </header>
 
-  <div class="prose">
+  ${toc}
+
+  <div class="post-body">
+    <div class="prose">
 ${post.html}
+    </div>
+
+    <section class="in-english" lang="en" aria-labelledby="in-english-heading">
+      <p class="eyebrow"><span lang="en">Summary</span></p>
+      <h2 id="in-english-heading">In English</h2>
+${post.inEnglishHtml}
+    </section>
+
+    <footer class="post-footer">
+      ${tags}
+      <p class="insta"><a href="${instaHref}" rel="noopener">${instaText}</a></p>
+    </footer>
   </div>
 
-  <section class="in-english" lang="en" aria-labelledby="in-english-heading">
-    <h2 id="in-english-heading">In English</h2>
-${post.inEnglishHtml}
-  </section>
-
-  <footer class="post-footer">
-    ${tags}
+  <aside class="post-rail" aria-label="एह बतकही के बारे में">
+    <p class="eyebrow rail-meta">${eyebrowMeta(post)}</p>
+    <a class="rail-en" href="#in-english-heading">In English पढ़ीं</a>
     <div class="share" hidden>
       <button type="button" class="copy-link">लिंक कॉपी करीं</button>
       <button type="button" class="web-share" hidden>शेयर करीं</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
-    <p class="insta"><a href="${instaHref}" rel="noopener">${instaText}</a></p>
-  </footer>
+    ${relatedSection}
+  </aside>
 </article>
 
 ${postNav}`;
@@ -66,5 +112,7 @@ ${postNav}`;
     body,
     ogType: "article",
     bodyClass: "page-post",
+    mainClass: "container post-wrap",
+    progress: true,
   });
 }
