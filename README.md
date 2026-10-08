@@ -71,3 +71,14 @@ python scripts/render-brand.py
 ## Deploy
 
 `.github/workflows/pages.yml` builds and tests on every push to `main` (and on manual dispatch) and deploys `dist/` to GitHub Pages. Set the repository's Pages source to "GitHub Actions".
+
+Live verification results (Lighthouse, payload, screenshots) are in [`docs/VERIFICATION.md`](docs/VERIFICATION.md).
+
+## Owner to-do
+
+Things only the owner can do; nothing here has been done or verified by the build:
+
+1. Create or claim the Instagram account **@batkahi** and confirm the handle is actually available. The site links to `https://www.instagram.com/batkahi/` but the handle's availability has not been verified.
+2. Review the Bhojpuri copy of the 6 posts in `content/posts/` (they are first drafts).
+3. Decide on and buy the domain (`batkahi.ai` and `batkahi.in` were unregistered on 2026-10-05), then set `siteUrl` and `basePath` in `site.config.js` and add `public/CNAME` as described in "Moving to a custom domain later".
+4. Put the live URL (https://sudish007.github.io/ai-batkahi/ or the custom domain) in the Instagram bio.
