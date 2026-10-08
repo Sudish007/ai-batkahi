@@ -498,7 +498,7 @@ async function fluidContainer() {
 }
 
 async function rail() {
-  for (const width of [1920, 2560]) {
+  for (const width of [1600, 1920, 2560]) {
     const ctx = await newCtx({ width, height: 1080 });
     const page = await ctx.newPage();
     await open(page, byKey("post").path);
@@ -507,15 +507,21 @@ async function rail() {
       const body = document.querySelector(".post-body").getBoundingClientRect();
       const toc = document.querySelector(".toc-wrap");
       const t = toc.getBoundingClientRect();
+      const railFirst = document.querySelector(".post-rail").firstElementChild;
       return {
         gap: Math.round((rail.left - body.right) * 10) / 10,
+        // Both rails hug the reading column by the same column-gap.
+        tocGap: Math.round((body.left - t.right) * 10) / 10,
         railRightFrac: Math.round((rail.right / innerWidth) * 1000) / 1000,
         tocLeftFrac: Math.round((t.left / innerWidth) * 1000) / 1000,
         tocPosition: getComputedStyle(toc).position,
         railPosition: getComputedStyle(document.querySelector(".post-rail")).position,
+        railFirst: railFirst.className,
+        metaLines: (document.body.innerText.match(/पढ़े में ~\d+ मिनट/g) || []).length,
       };
     });
-    const ok = r.gap >= 46 && r.gap <= 66 && r.railRightFrac <= 0.92 && r.tocLeftFrac >= 0.08 && r.tocPosition === "sticky";
+    const ok = r.gap >= 46 && r.gap <= 66 && Math.abs(r.tocGap - r.gap) <= 2 && r.railRightFrac <= 0.92 && r.tocLeftFrac >= 0.08 &&
+      r.tocPosition === "sticky" && r.railFirst === "rail-en" && r.metaLines === 1;
     record("N rail", "post", width, "light", ok, r);
     await ctx.close();
   }

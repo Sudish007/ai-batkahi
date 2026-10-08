@@ -4,8 +4,8 @@ import { escapeHtml } from "../lib/xml.js";
 import { formatBhojpuriDate } from "../lib/dates.js";
 import { layout } from "./layout.js";
 
-// Eyebrow meta: category link · date · reading time. Used once in the centred
-// header (every width) and once in the right rail (shown only at >= 100em).
+// Eyebrow meta: category link · date · reading time. Shown once, above the
+// title (the right rail never repeats it).
 function eyebrowMeta(post) {
   return `<a href="${url(`category/${post.category.slug}/`)}">${escapeHtml(post.category.name)}</a> · <time datetime="${post.date}">${formatBhojpuriDate(post.date)}</time> · पढ़े में ~${post.minutes} मिनट`;
 }
@@ -95,7 +95,6 @@ ${post.inEnglishHtml}
   </div>
 
   <aside class="post-rail" aria-label="एह बतकही के बारे में">
-    <p class="eyebrow rail-meta">${eyebrowMeta(post)}</p>
     <a class="rail-en" href="#in-english-heading">In English पढ़ीं</a>
     <div class="share" hidden>
       <button type="button" class="copy-link">लिंक कॉपी करीं</button>
