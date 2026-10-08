@@ -9,6 +9,9 @@
   /* ---------- Theme toggle ----------
      Light is the default for everyone; the OS preference is never consulted.
      "dark" = html[data-theme="dark"], anything else = light (no attribute). */
+  // theme.toggle() is shared with the palette's "थीम बदलीं" action so the
+  // attribute, storage, aria-label and meta updates live in one code path.
+  var theme = { toggle: null };
   var toggle = document.querySelector(".theme-toggle");
   if (toggle) {
     var schemeMeta = document.querySelector('meta[name="color-scheme"]');
@@ -34,7 +37,7 @@
       }
     };
 
-    toggle.addEventListener("click", function () {
+    theme.toggle = function () {
       var next = current() === "dark" ? "light" : "dark";
       if (next === "dark") root.setAttribute("data-theme", "dark");
       else root.removeAttribute("data-theme");
@@ -44,7 +47,8 @@
         /* storage unavailable */
       }
       render();
-    });
+    };
+    toggle.addEventListener("click", theme.toggle);
 
     render();
     toggle.disabled = false;
@@ -316,5 +320,372 @@
     }
 
     if (canCopy || canShare) share.hidden = false;
+  }
+
+  /* ---------- Command palette (every page) ----------
+     The <dialog> is inert without JS and the search link stays a plain link.
+     Options are the <a>/<button> elements themselves (li is presentational), so
+     aria-activedescendant names the thing Enter activates. */
+  var dialog = document.querySelector(".palette");
+  var searchBtn = document.querySelector(".search-btn");
+  var openPalette = null;
+  if (dialog && typeof dialog.showModal === "function") {
+    var input = dialog.querySelector(".palette-input");
+    var list = dialog.querySelector(".palette-results");
+    var palStatus = dialog.querySelector(".palette-status");
+    var themeBtn = dialog.querySelector(".palette-theme");
+    var statics = [];
+    var staticRows = list.querySelectorAll("li");
+    for (var s = 0; s < staticRows.length; s++) {
+      if (staticRows[s].querySelector("[data-static]")) statics.push(staticRows[s]);
+    }
+    var searchIndex = null; // null = not fetched yet; [] = fetched (or failed)
+    var indexFailed = false;
+    var indexPromise = null;
+    var invoker = null;
+    var renderFrame = null;
+
+    var norm = function (str) {
+      return String(str || "").normalize("NFC").toLowerCase();
+    };
+
+    var loadIndex = function () {
+      if (indexPromise) return indexPromise;
+      indexPromise = fetch(dialog.getAttribute("data-index"), { credentials: "same-origin" })
+        .then(function (res) {
+          return res.ok ? res.json() : Promise.reject(new Error(String(res.status)));
+        })
+        .then(function (data) {
+          searchIndex = (data && data.posts) || [];
+        })
+        .catch(function (err) {
+          searchIndex = [];
+          indexFailed = true;
+          console.warn("search.json unavailable", err);
+        });
+      return indexPromise;
+    };
+
+    var score = function (post, q) {
+      var title = norm(post.title);
+      var points = 0;
+      if (title.indexOf(q) === 0) points += 10;
+      else if (title.indexOf(q) !== -1) points += 6;
+      if (norm(post.title_en).indexOf(q) !== -1) points += 4;
+      var tagHit = norm(post.categoryName).indexOf(q) !== -1 || norm(post.category).indexOf(q) !== -1;
+      var tags = post.tags || [];
+      for (var i = 0; i < tags.length && !tagHit; i++) {
+        if (norm(tags[i]).indexOf(q) !== -1) tagHit = true;
+      }
+      if (tagHit) points += 3;
+      if (norm(post.summary).indexOf(q) !== -1) points += 1;
+      return points;
+    };
+
+    var options = function () {
+      var all = list.querySelectorAll('[role="option"]');
+      var visible = [];
+      for (var i = 0; i < all.length; i++) {
+        if (!all[i].parentNode.hidden) visible.push(all[i]);
+      }
+      return visible;
+    };
+
+    var setActive = function (el) {
+      var all = list.querySelectorAll('[role="option"]');
+      for (var i = 0; i < all.length; i++) all[i].removeAttribute("aria-selected");
+      if (el) {
+        el.setAttribute("aria-selected", "true");
+        input.setAttribute("aria-activedescendant", el.id);
+        if (el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+      } else {
+        input.setAttribute("aria-activedescendant", "");
+      }
+    };
+
+    var activeOption = function () {
+      var id = input.getAttribute("aria-activedescendant");
+      return id ? document.getElementById(id) : null;
+    };
+
+    var renderPalette = function (query) {
+      var q = norm(query).trim();
+      var posts = searchIndex || [];
+      var results = [];
+      if (q) {
+        for (var i = 0; i < posts.length; i++) {
+          var pts = score(posts[i], q);
+          if (pts > 0) results.push({ post: posts[i], score: pts });
+        }
+        results.sort(function (a, b) {
+          return b.score - a.score || (a.post.date < b.post.date ? 1 : a.post.date > b.post.date ? -1 : 0);
+        });
+        results = results.slice(0, 8);
+      } else {
+        for (var j = 0; j < posts.length && j < 5; j++) results.push({ post: posts[j] });
+      }
+
+      // Rebuild the post rows (textContent only), inserted before the static rows.
+      var old = list.querySelectorAll("li[data-post]");
+      for (var k = 0; k < old.length; k++) list.removeChild(old[k]);
+      var first = list.firstChild;
+      for (var n = 0; n < results.length; n++) {
+        var post = results[n].post;
+        var li = document.createElement("li");
+        li.setAttribute("role", "presentation");
+        li.setAttribute("data-post", "");
+        var a = document.createElement("a");
+        a.setAttribute("role", "option");
+        a.id = "pal-" + (n + 1);
+        a.tabIndex = -1;
+        a.href = post.url;
+        var t = document.createElement("span");
+        t.className = "pal-title";
+        t.textContent = post.title;
+        var meta = document.createElement("span");
+        meta.className = "pal-meta";
+        meta.lang = "en";
+        meta.textContent = post.title_en + " \u00b7 " + post.categoryName;
+        a.appendChild(t);
+        a.appendChild(meta);
+        li.appendChild(a);
+        list.insertBefore(li, first);
+      }
+
+      // Static rows stay; with a query they are hidden unless their text matches.
+      var staticVisible = 0;
+      for (var m = 0; m < statics.length; m++) {
+        var hide = !!q && norm(statics[m].textContent).indexOf(q) === -1;
+        statics[m].hidden = hide;
+        if (!hide) staticVisible++;
+      }
+
+      var visible = options();
+      setActive(visible.length ? visible[0] : null);
+
+      if (indexFailed) {
+        palStatus.textContent = "खोज अभी उपलब्ध नइखे";
+      } else if (searchIndex === null) {
+        palStatus.textContent = "";
+      } else {
+        var count = q ? results.length + staticVisible : results.length;
+        palStatus.textContent = count ? count + " नतीजा" : "कुछ ना मिलल।";
+      }
+    };
+
+    var scheduleRender = function () {
+      if (renderFrame) return;
+      renderFrame = requestAnimationFrame(function () {
+        renderFrame = null;
+        renderPalette(input.value);
+      });
+    };
+
+    openPalette = function (from) {
+      if (dialog.open) {
+        input.focus();
+        return;
+      }
+      invoker = from || null;
+      dialog.showModal();
+      input.value = "";
+      renderPalette("");
+      input.focus();
+      if (searchIndex === null) {
+        loadIndex().then(function () {
+          if (dialog.open) renderPalette(input.value);
+        });
+      }
+    };
+
+    var closePalette = function () {
+      if (dialog.open) dialog.close();
+    };
+
+    var move = function (delta, absolute) {
+      var visible = options();
+      if (!visible.length) return;
+      var current = activeOption();
+      var at = -1;
+      for (var i = 0; i < visible.length; i++) {
+        if (visible[i] === current) at = i;
+      }
+      var next;
+      if (absolute === "first") next = 0;
+      else if (absolute === "last") next = visible.length - 1;
+      else next = (at + delta + visible.length) % visible.length;
+      setActive(visible[next]);
+    };
+
+    input.addEventListener("input", scheduleRender);
+
+    input.addEventListener("keydown", function (ev) {
+      switch (ev.key) {
+        case "ArrowDown":
+          ev.preventDefault();
+          move(1);
+          break;
+        case "ArrowUp":
+          ev.preventDefault();
+          move(-1);
+          break;
+        case "Home":
+          ev.preventDefault();
+          move(0, "first");
+          break;
+        case "End":
+          ev.preventDefault();
+          move(0, "last");
+          break;
+        case "Enter":
+          ev.preventDefault(); // never submit the method="dialog" form
+          var active = activeOption();
+          if (!active) return;
+          if (active.tagName === "BUTTON") active.click();
+          else location.assign(active.href);
+          break;
+        case "Escape":
+          ev.preventDefault();
+          closePalette();
+          break;
+      }
+    });
+
+    // Clicks on <a role=option> navigate natively (middle-click works).
+    if (themeBtn) {
+      themeBtn.addEventListener("click", function () {
+        if (theme.toggle) theme.toggle();
+        closePalette();
+      });
+    }
+
+    dialog.addEventListener("click", function (ev) {
+      if (ev.target === dialog) closePalette(); // backdrop
+    });
+
+    dialog.addEventListener("close", function () {
+      if (invoker && invoker.focus) invoker.focus();
+    });
+
+    // The form never submits: Enter is handled above, but keep it inert anyway.
+    dialog.querySelector(".palette-form").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+    });
+
+    if (searchBtn) {
+      searchBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        openPalette(searchBtn);
+      });
+    }
+
+    // Ctrl/⌘+K is always on (it is a modifier shortcut, WCAG 2.1.4 does not apply).
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "k" && (ev.ctrlKey || ev.metaKey) && !ev.altKey) {
+        ev.preventDefault();
+        openPalette(searchBtn || document.activeElement);
+      }
+    });
+  }
+
+  /* ---------- Single-key shortcuts ('/' and g-chords) with an off switch ----------
+     WCAG 2.1.4: page-wide single-character shortcuts must be turn-off-able.
+     localStorage.shortcuts === "off" disables them; the toggle lives in the
+     palette footer. Never fires inside editable fields or while the palette is open. */
+  if (dialog && openPalette) {
+    var shortcutsOn = function () {
+      try {
+        return localStorage.getItem("shortcuts") !== "off";
+      } catch (e) {
+        return true;
+      }
+    };
+    var isEditable = function (t) {
+      return !!(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)));
+    };
+    var chordTimer = null;
+    var chordOpen = false;
+    var cancelChord = function () {
+      clearTimeout(chordTimer);
+      chordTimer = null;
+      chordOpen = false;
+    };
+
+    document.addEventListener("keydown", function (ev) {
+      if (dialog.open || isEditable(ev.target)) return;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var key = ev.key;
+      if (chordOpen) {
+        var target = /^[hpa]$/.test(key) ? dialog.querySelector('[data-chord="' + key + '"]') : null;
+        cancelChord();
+        if (target) {
+          ev.preventDefault();
+          location.assign(target.href);
+        }
+        return;
+      }
+      if (!shortcutsOn()) return;
+      if (key === "/") {
+        ev.preventDefault();
+        openPalette(searchBtn || document.activeElement);
+      } else if (key === "g") {
+        chordOpen = true;
+        chordTimer = setTimeout(cancelChord, 800);
+      }
+    });
+
+    var shortcutsBtn = dialog.querySelector(".shortcuts-toggle");
+    var hints = dialog.querySelector(".palette-hints");
+    if (shortcutsBtn) {
+      var stateEl = shortcutsBtn.querySelector(".shortcuts-state");
+      var renderShortcuts = function () {
+        var on = shortcutsOn();
+        shortcutsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        if (stateEl) stateEl.textContent = on ? "चालू" : "बंद";
+        if (hints) hints.classList.toggle("shortcuts-off", !on);
+      };
+      shortcutsBtn.addEventListener("click", function () {
+        try {
+          if (shortcutsOn()) localStorage.setItem("shortcuts", "off");
+          else localStorage.removeItem("shortcuts");
+        } catch (e) {
+          /* storage unavailable */
+        }
+        renderShortcuts();
+      });
+      renderShortcuts();
+    }
+  }
+
+  /* ---------- Cross-document view transitions: title handoff ----------
+     CSS names the post <h1> "post-title" statically; on list pages the clicked
+     card title gets the same name only for the moment of navigation (and back),
+     so the title morphs into the heading. Chromium only; others crossfade root. */
+  if ("onpageswap" in window && "navigation" in window) {
+    var postPath = /\/posts\/([a-z0-9-]+)\/$/;
+    window.addEventListener("pageswap", function (e) {
+      if (!e.viewTransition || !e.activation || !e.activation.entry) return;
+      var to = new URL(e.activation.entry.url).pathname;
+      var m = to.match(postPath);
+      if (!m) return;
+      var link = document.querySelector(
+        '.post-item-title a[href$="/posts/' + m[1] + '/"], .related a[href$="/posts/' + m[1] + '/"]'
+      );
+      if (link) link.style.viewTransitionName = "post-title";
+    });
+    window.addEventListener("pagereveal", function (e) {
+      if (!e.viewTransition || !navigation.activation || !navigation.activation.from) return;
+      var from = new URL(navigation.activation.from.url).pathname;
+      var m = from.match(postPath);
+      if (!m || document.querySelector(".post-header h1")) return;
+      var link = document.querySelector('.post-item-title a[href$="/posts/' + m[1] + '/"]');
+      if (!link) return;
+      link.style.viewTransitionName = "post-title";
+      // finished rejects when the browser skips the transition; clear either way.
+      var clearName = function () {
+        link.style.viewTransitionName = "";
+      };
+      e.viewTransition.finished.then(clearName, clearName);
+    });
   }
 })();

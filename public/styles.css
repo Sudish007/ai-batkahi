@@ -1655,6 +1655,126 @@ main.post-wrap {
   gap: 0.75rem;
 }
 
+/* ---------- Command palette (dialog) ----------
+   Flat surface on --bg-alt with a hairline border; the backdrop is a flat scrim.
+   The literal rgba() comes first because older engines do not inherit custom
+   properties into ::backdrop. */
+.palette {
+  width: min(40rem, calc(100vw - 2rem));
+  margin: 12vh auto 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  background: var(--bg-alt);
+  color: var(--ink);
+  max-height: min(70vh, 40rem);
+  overflow: hidden;
+}
+
+.palette::backdrop {
+  background: rgba(31, 27, 23, 0.45);
+  background: var(--scrim);
+}
+
+:root[data-theme="dark"] .palette::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.palette-form {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.palette-input {
+  font: inherit;
+  font-size: var(--fs-base);
+  min-height: var(--control);
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+}
+
+.palette-results {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+  overflow-y: auto;
+}
+
+.palette-results [role="option"] {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: var(--control);
+  padding: 0.5rem 1rem;
+  color: var(--ink);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.palette-results [role="option"][aria-selected="true"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.palette-results .pal-meta {
+  font-size: var(--fs-xs);
+  color: inherit;
+  opacity: 1;
+}
+
+.palette-status {
+  margin: 0;
+  padding: 0.25rem 1rem;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  min-height: 1.5em;
+}
+
+.palette-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid var(--rule);
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+
+.palette-hints kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.shortcuts-toggle {
+  margin-left: auto;
+  min-height: var(--control);
+  padding: 0 0.75rem;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.shortcuts-toggle[aria-pressed="false"] ~ .chord-hints,
+.palette-hints.shortcuts-off .chord-hints {
+  display: none;
+}
+
 /* ---------- Print ---------- */
 @media print {
   .tools,

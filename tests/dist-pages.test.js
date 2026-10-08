@@ -239,6 +239,36 @@ test("404 page exists with Bhojpuri message and noindex", () => {
   assert.ok(nf.includes('<ul class="link-row">'));
 });
 
+test("every page carries the command palette with an a11y-correct listbox", () => {
+  for (const file of htmlFiles()) {
+    const html = read(file);
+    assert.equal((html.match(/role="listbox"/g) || []).length, 1, `${file}: listbox count`);
+    const dialog = html.match(/<dialog class="palette" aria-label="खोजीं"[^>]*>[\s\S]*?<\/dialog>/);
+    assert.ok(dialog, `${file}: dialog.palette`);
+    assert.ok(html.includes(`data-index="${config.basePath}search.json"`), `${file}: data-index`);
+    // Every option is the <a>/<button> itself, never the <li>.
+    for (const m of html.matchAll(/<(\w+)[^>]*role="option"/g)) {
+      assert.ok(m[1] === "a" || m[1] === "button", `${file}: role=option on <${m[1]}>`);
+    }
+    assert.ok(/<li role="presentation"><a role="option"/.test(html), `${file}: li[role=presentation] > a[role=option]`);
+    const chord = (key) => {
+      const m = html.match(new RegExp(`<a role="option"[^>]*data-chord="${key}"[^>]*href="([^"]*)"`));
+      assert.ok(m, `${file}: data-chord=${key}`);
+      return m[1];
+    };
+    assert.equal(chord("h"), config.basePath);
+    assert.equal(chord("p"), `${config.basePath}posts/`);
+    assert.equal(chord("a"), `${config.basePath}about/`);
+    const insta = html.match(new RegExp(`<a role="option"[^>]*href="${config.instagramUrl}"[^>]*>`));
+    assert.ok(insta, `${file}: Instagram option`);
+    assert.match(insta[0], /rel="noopener"/, file);
+    assert.ok(html.includes('<button role="option" id="pal-s5" tabindex="-1" type="button" class="palette-theme" data-static>थीम बदलीं</button>'), `${file}: theme action`);
+    assert.ok(html.includes('class="shortcuts-toggle" aria-pressed="true"'), `${file}: shortcuts toggle`);
+    assert.ok(!/<h[1-6][\s>]/.test(dialog[0]), `${file}: palette must not contain headings`);
+    assert.ok(html.includes('placeholder="बतकही खोजीं…"'), `${file}: placeholder`);
+  }
+});
+
 test("size budgets: styles.css and main.js <= 60 KB, per-page HTML+CSS+JS <= 150 KB", () => {
   const css = Buffer.byteLength(read(join(DIST, "styles.css")));
   const js = Buffer.byteLength(read(join(DIST, "main.js")));

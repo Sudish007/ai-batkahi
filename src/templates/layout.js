@@ -10,6 +10,33 @@ import { masthead, siteNav, tools, footer } from "./partials.js";
 export const PREPAINT =
   'try{var t=localStorage.getItem("theme");if(t==="dark"){var d=document.documentElement;d.setAttribute("data-theme","dark");var m=document.querySelector(\'meta[name="color-scheme"]\');if(m)m.content="dark";var c=document.querySelector(\'meta[name="theme-color"]\');if(c)c.content="#15130F"}}catch(e){}document.documentElement.classList.add("js");if(!(window.CSS&&CSS.supports&&CSS.supports("animation-timeline: view()")))document.documentElement.classList.add("no-sda");';
 
+// Command palette: an inert <dialog> on every page. main.js opens it (search
+// link, Ctrl/⌘+K, '/'); without JS it is never shown and the search link stays
+// a plain link to posts/. Listbox structure per the review: options are the
+// <a>/<button> themselves, each wrapped in a presentational <li>. No headings
+// here, so heading continuity on the page is unaffected.
+function palette() {
+  return `<dialog class="palette" aria-label="खोजीं" data-index="${url("search.json")}">
+  <form class="palette-form" role="search" method="dialog">
+    <label class="visually-hidden" for="palette-input">खोजीं</label>
+    <input id="palette-input" class="palette-input" type="search" placeholder="बतकही खोजीं…" autocomplete="off" spellcheck="false" aria-controls="palette-results" aria-activedescendant="">
+    <ul id="palette-results" class="palette-results" role="listbox" aria-label="नतीजा">
+      <li role="presentation"><a role="option" id="pal-s1" tabindex="-1" data-chord="h" data-static href="${url("")}">घर</a></li>
+      <li role="presentation"><a role="option" id="pal-s2" tabindex="-1" data-chord="p" data-static href="${url("posts/")}">सब बतकही</a></li>
+      <li role="presentation"><a role="option" id="pal-s3" tabindex="-1" data-chord="a" data-static href="${url("about/")}">हमरा बारे में</a></li>
+      <li role="presentation"><a role="option" id="pal-s4" tabindex="-1" data-static href="${config.instagramUrl}" rel="noopener" lang="en">Instagram ${escapeHtml(config.instagramHandle)}</a></li>
+      <li role="presentation"><button role="option" id="pal-s5" tabindex="-1" type="button" class="palette-theme" data-static>थीम बदलीं</button></li>
+    </ul>
+    <p class="palette-status" role="status" aria-live="polite"></p>
+    <footer class="palette-hints">
+      <span class="hint"><kbd>↑↓</kbd> चुनीं · <kbd>Enter</kbd> खोलीं · <kbd>Esc</kbd> बंद करीं</span>
+      <span class="hint chord-hints"><kbd>g h</kbd> घर · <kbd>g p</kbd> सब बतकही · <kbd>g a</kbd> हमरा बारे में</span>
+      <button type="button" class="shortcuts-toggle" aria-pressed="true">सिंगल-की शॉर्टकट: <span class="shortcuts-state">चालू</span></button>
+    </footer>
+  </form>
+</dialog>`;
+}
+
 export function layout({
   title,
   description,
@@ -68,6 +95,7 @@ ${progress ? '<div class="progress" aria-hidden="true"><div class="progress-bar"
 ${body}
 </main>
 ${footer()}
+${palette()}
 <script src="${url("main.js")}" defer></script>
 </body>
 </html>
