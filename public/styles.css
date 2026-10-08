@@ -428,6 +428,13 @@ p {
   color: var(--ink-muted);
 }
 
+/* No keyboard hint on touch-only devices (tablets at >= 48em). */
+@media (hover: none) {
+  .kbd {
+    display: none;
+  }
+}
+
 @media (min-width: 48em) {
   .icon-btn.search-btn {
     padding-inline: 0.9rem 0.5rem;
@@ -920,9 +927,32 @@ p {
   }
 }
 
+/* Fill orphan cells in the last row (the first card already spans two). */
+@media (min-width: 1600px) and (max-width: 2199px) {
+  .post-grid.bento > li:last-child:nth-child(3n) {
+    grid-column: span 3;
+  }
+
+  .post-grid.bento > li:last-child:nth-child(3n + 1) {
+    grid-column: span 2;
+  }
+}
+
 @media (min-width: 2200px) {
   .post-grid.bento {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .post-grid.bento > li:last-child:nth-child(4n) {
+    grid-column: span 4;
+  }
+
+  .post-grid.bento > li:last-child:nth-child(4n + 1) {
+    grid-column: span 3;
+  }
+
+  .post-grid.bento > li:last-child:nth-child(4n + 2) {
+    grid-column: span 2;
   }
 }
 
@@ -1520,7 +1550,7 @@ main.post-wrap {
     top: 2rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
-    padding-top: 7.5rem;
+    margin-top: 7.5rem;
   }
 
   .toc-wrap summary {
@@ -1845,6 +1875,8 @@ main.post-wrap {
     opacity: 0;
     translate: 0 14px;
     transition: opacity 500ms ease-out, translate 500ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    /* Fail-open: if main.js never runs, cards still appear after 4 s. */
+    animation: reveal-safety 500ms ease-out 4s both;
   }
 
   html.js.no-sda .reveal.is-in {
@@ -1933,6 +1965,14 @@ main.post-wrap {
     opacity: 0;
     translate: 0 14px;
   }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* To-only keyframe: no-op for cards already revealed via .is-in. */
+@keyframes reveal-safety {
   to {
     opacity: 1;
     translate: 0 0;
