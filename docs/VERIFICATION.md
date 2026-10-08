@@ -1,6 +1,63 @@
+# v2 Phase 1 — LIVE, 2026-10-08
+
+`feat/ui-v2` was fast-forwarded into `main` at `8d4a456` and deployed by `.github/workflows/pages.yml` (run 37799557793: `npm ci` → `npm test` → `npm run build` → Pages, success). Verified against https://sudish007.github.io/ai-batkahi/ in fresh headless Microsoft Edge contexts (Playwright for Python).
+
+## What changed since the local section below
+
+The six review NITs from `review-phase1.json` were folded in before the merge (commit `8d4a456`): bento last-row fill rules at 1600–2199 px (`span 3` / `span 2`) and ≥ 2200 px (`span 4` / `3` / `2`); the sticky ToC uses `margin-top: 7.5rem` instead of `padding-top` so its stuck position matches the right rail (`top: 2rem`); a 4 s `reveal-safety` keyframe makes the IntersectionObserver reveal fail-open if `main.js` never runs; `Ctrl/⌘+K` matches with Caps Lock on (`ev.key.toLowerCase()`); the `⌘ K` chip is hidden under `@media (hover: none)`; README names the audit scope (six representative pages). After the fold: `npm test` 87 / 0, `npm run audit` 658 rows / 0 failed, `styles.css` 39 062 B, `main.js` 25 977 B.
+
+## Live URLs (fresh context, 1280×800)
+
+| Page | URL | Result |
+| --- | --- | --- |
+| Home | https://sudish007.github.io/ai-batkahi/ | 200, `AI Batkahi · AI के बतकही, आपन भाषा में`, h1 `एआई बतकही — AI Batkahi` |
+| All posts | https://sudish007.github.io/ai-batkahi/posts/ | 200, `सब बतकही · AI Batkahi` |
+| Post | https://sudish007.github.io/ai-batkahi/posts/llm-kaise-bolela/ | 200, `ChatGPT जइसन AI कइसे बोलेला? · AI Batkahi` |
+| Category | https://sudish007.github.io/ai-batkahi/category/samajh/ | 200, `समझ · AI Batkahi` |
+| About | https://sudish007.github.io/ai-batkahi/about/ | 200, `हमरा बारे में · AI Batkahi` |
+| 404 | https://sudish007.github.io/ai-batkahi/does-not-exist-xyz/ | 404, custom page `पन्ना नइखे मिलल · AI Batkahi` |
+| Atom feed | https://sudish007.github.io/ai-batkahi/feed.xml | 200, `application/xml`, 6 entries |
+| Sitemap | https://sudish007.github.io/ai-batkahi/sitemap.xml | 200, `application/xml`, 12 `<loc>`, all under `/ai-batkahi/` |
+| Search index | https://sudish007.github.io/ai-batkahi/search.json | 200, `application/json`, `{v: 1, posts: [...]}` with 6 posts |
+
+The deployed `styles.css` and `main.js` contain the NIT changes (`reveal-safety`, `hover: none`, `nth-child(4n + 2)`, `toLowerCase() === "k"`).
+
+## 320 px overflow (live)
+
+`scrollWidth <= clientWidth` at 320×640 on all 13 live HTML pages (home, posts, about, 3 categories, 6 posts) plus the 404 URL: every page reports 320 / 320 → pass.
+
+## Light default under OS dark (live)
+
+Fresh context with `color_scheme="dark"` and empty storage on home and the post: `data-theme` null, `--bg` `#FAF6EF`, body background `rgb(250, 246, 239)`, `meta[color-scheme]` `light`, one `meta[theme-color]` `#FAF6EF`, `matchMedia('(prefers-color-scheme: dark)')` true, `localStorage.length` 0 → renders light.
+
+## Lighthouse 13.5.0 (mobile preset, headless Edge, live URLs)
+
+| Page | Performance | Accessibility | Best practices | SEO | LCP | CLS | TBT | FCP | LCP element |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Home | 96 | 100 | 100 | 100 | **2.62 s** | 0 | 50 ms | 1.6 s | `h1#site-title` |
+| Post (llm-kaise-bolela) | 97 | 100 | 100 | 100 | 2.35 s | 0 | 150 ms | 1.0 s | lede paragraph (`.prose > p`) |
+
+Honest reading: the home LCP of 2.62 s is **above the 2.5 s target** (the post is under it at 2.35 s). The cause is the one documented below for the local run: the Lighthouse simulation counts the six preloaded `font-display: optional` woff2 files (≈ 251 KB) before the hero paint; the owner decision to keep that strategy (zero CLS) stands. Single run each; Lighthouse lab numbers vary by ~0.1 s between runs.
+
+## Screenshots (live, viewport-only, ≤ 1920 px per side)
+
+Committed under `docs/screenshots/`, captured from the deployed site:
+
+- `home-1440x900-light.png` (1440×900)
+- `home-1440x900-dark.png` (1440×900, stored `theme=dark`)
+- `home-390x844.png` (390×844)
+- `post-1440x900.png` (1440×900, `posts/llm-kaise-bolela/`)
+- `about-1440x900.png` (1440×900)
+- `home-1920x1080-light.png` (1920×1080)
+- `posts-1920x1080-light.png` (1920×1080, three-column card grid)
+- `post-1920x1080-light.png` (1920×1080, ToC rail + right rail)
+- `home-2560x1440-light.png` (2560×1440 viewport at `device_scale_factor` 0.75 → 1920×1080 PNG; container at ~92 % of the viewport)
+
+---
+
 # v2 Phase 1 — local (pre-merge), 2026-10-08
 
-Measured on `dist/` built with Node 24.16 (`engines.node >=22.2`) from branch `feat/ui-v2` and served by `scripts/serve.mjs` (gzip, like Pages) at `http://127.0.0.1:8082/ai-batkahi/`. The live run for v2 is appended by the merge step, which also refreshes `docs/screenshots/` from the deployed site.
+Measured on `dist/` built with Node 24.16 (`engines.node >=22.2`) from branch `feat/ui-v2` and served by `scripts/serve.mjs` (gzip, like Pages) at `http://127.0.0.1:8082/ai-batkahi/`.
 
 ## Tests and audit
 
