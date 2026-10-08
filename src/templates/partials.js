@@ -85,7 +85,7 @@ export function postCard(post, { headingLevel = 2 } = {}) {
 // kind: "bento" (home) | "cards" (posts index, category pages)
 export function postGrid(posts, { kind = "cards", headingLevel = 2 } = {}) {
   if (posts.length === 0) {
-    return `<p class="empty">अभी एह विषय में कोई बतकही नइखे।</p>`;
+    return `<p class="empty">अबहीं एह विषय में कवनो बतकही नइखे।</p>`;
   }
   return `<ul class="post-grid ${kind}">
 ${posts.map((p) => postCard(p, { headingLevel })).join("\n")}
