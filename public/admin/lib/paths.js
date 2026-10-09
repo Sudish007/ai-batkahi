@@ -29,17 +29,19 @@ const localSlugify = (s) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-// "My Photo.PNG", "webp" -> "20261009-my-photo.webp"
+// ISO date in India Standard Time (UTC+5:30), independent of the host timezone.
+const isoDateIST = (d) => new Date(d.getTime() + 330 * 60000).toISOString().slice(0, 10);
+
+// "My Photo.PNG", "webp" -> "20261009-my-photo.webp" (date in IST, like todayIST)
 export function imageFileName(originalName, ext, date = new Date(), slugify = localSlugify) {
   const stem = String(originalName).replace(/\.[^.]*$/, "");
-  const ymd = date.toISOString().slice(0, 10).replace(/-/g, "");
+  const ymd = isoDateIST(date).replace(/-/g, "");
   return `${ymd}-${slugify(stem) || "image"}.${ext}`;
 }
 
 export const imagePath = (slug, name) => `content/images/${slug}/${name}`;
 export const imageMarkdownPath = (slug, name) => `/images/${slug}/${name}`;
 
-// ISO date in India Standard Time (UTC+5:30), independent of the host timezone.
 export function todayIST(now = new Date()) {
-  return new Date(now.getTime() + 330 * 60000).toISOString().slice(0, 10);
+  return isoDateIST(now);
 }

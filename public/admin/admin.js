@@ -37,7 +37,6 @@ const state = {
   previewTimer: 0,
   slugTouched: false,
   tags: [],
-  fetchedAt: 0,
   publishedFile: null,
 };
 
@@ -203,7 +202,6 @@ function postRow(name, entry) {
 async function loadFiles() {
   const dir = await state.client.listDir(POSTS_DIR);
   state.files = dir.map((f) => f.name).filter((n) => n.endsWith(".md")).sort();
-  state.fetchedAt = Date.now();
   return state.files;
 }
 
@@ -233,7 +231,10 @@ async function loadDashboard() {
   } catch (err) {
     list.classList.remove("skeleton");
     clear(list);
-    if (err instanceof GitHubError && err.status === 401) return lock(fail(err, "सूची"));
+    if (err instanceof GitHubError && err.status === 401) {
+      store.clear();
+      return lock(fail(err, "सूची"));
+    }
     setError($("dash-error"), fail(err, "सूची"));
     show($("dash-retry"), true);
   } finally {
@@ -248,7 +249,7 @@ async function loadDeployStatus() {
     const info = describeLatest(await state.client.latestPagesRun());
     if (!info) return;
     node.append(document.createTextNode(info.text + " "));
-    if (info.url) node.append(el("a", { href: info.url, rel: "noopener", lang: "en", text: "run" }));
+    if (info.url) node.append(el("a", { href: info.url, rel: "noopener", lang: "en", text: "run" }), document.createTextNode(" (Actions चलाव)"));
   } catch (err) {
     fail(err, "deploy status");
   }
@@ -258,13 +259,18 @@ function confirmDelete(name, entry) {
   const dlg = $("confirm-delete");
   const slug = entry.slug;
   const title = entry.error ? name : entry.data.title;
-  $("del-text").textContent = `${title} (${slug}) हटाईं? ई commit बनी आ (प्रकाशित पोस्ट खातिर) साइट फेर बनी।`;
+  $("del-text").textContent = `${title} (${slug}) हटाईं? ई commit (बदलाव दर्ज) बनी आ (प्रकाशित पोस्ट खातिर) साइट फेर बनी।`;
   const input = $("confirm-slug");
   const go = $("del-go");
   input.value = "";
   go.disabled = true;
   input.oninput = () => (go.disabled = input.value.trim() !== slug);
-  go.onclick = async () => {
+  // #del-go is the form's only submit button, so Enter in the slug field submits
+  // exactly when the typed slug matches (a disabled default button blocks implicit
+  // submission). The dialog stays open until the DELETE has succeeded.
+  dlg.querySelector("form").onsubmit = async (ev) => {
+    ev.preventDefault();
+    if (go.disabled) return;
     go.disabled = true;
     try {
       let sha = entry.sha;
@@ -273,12 +279,14 @@ function confirmDelete(name, entry) {
       await state.client.deleteFile(`${POSTS_DIR}/${name}`, { sha, message: `post: delete ${titleEn}` });
       log(`हटावल: ${name}`);
       state.posts.delete(name);
-      dlg.close();
+      dlg.close("ok");
       loadDashboard();
     } catch (err) {
       $("del-text").textContent = fail(err, "हटावल");
+      go.disabled = input.value.trim() !== slug;
     }
   };
+  $("del-cancel").onclick = () => dlg.close("cancel");
   dlg.showModal();
 }
 
@@ -422,6 +430,13 @@ function readLocal() {
   }
 }
 
+// A local copy is worth offering when it differs from what the form holds right
+// after loading (for an existing post: the file just fetched). The listing's
+// fetch time says nothing about that, so it is not consulted.
+function localDiffers(local) {
+  return local.body !== $("f-body").value || JSON.stringify(local.data) !== JSON.stringify(formData());
+}
+
 /* ---------- editor: open / reset ---------- */
 function resetErrors() {
   clear($("errors"));
@@ -440,7 +455,10 @@ async function openEditor(file) {
     try {
       await loadFiles();
     } catch (err) {
-      if (err instanceof GitHubError && err.status === 401) return lock(fail(err, "सूची"));
+      if (err instanceof GitHubError && err.status === 401) {
+        store.clear();
+        return lock(fail(err, "सूची"));
+      }
       fail(err, "सूची");
     }
   }
@@ -465,7 +483,7 @@ async function openEditor(file) {
   }
   $("save-state").textContent = "असहेजल";
   const local = readLocal();
-  if (local && (!file || local.savedAt > state.fetchedAt)) show($("restore"), true);
+  if (local && (!file || localDiffers(local))) show($("restore"), true);
   showView("editor");
   $("f-title").focus();
 }
@@ -636,6 +654,9 @@ async function publish({ draft }) {
   for (const t of $("post-form").querySelectorAll("[aria-invalid]")) t.removeAttribute("aria-invalid");
 
   const slug = data.slug.trim();
+  // The autosave key of THIS editing session, read before state.editing changes
+  // below: an update must never touch the unrelated ".new" key.
+  const key = draftKey();
   const path = state.editing ? `${POSTS_DIR}/${state.editing.file}` : nextPostPath(state.files, slug);
   const dlg = $("publish-dialog");
   $("pub-file").textContent = path;
@@ -681,8 +702,8 @@ async function publish({ draft }) {
   $("editor-heading").textContent = `संपादन: ${data.title.trim()}`;
   $("f-slug").readOnly = true;
   $("f-slug-hint").textContent = "प्रकाशित पोस्ट के slug ना बदले";
-  localStorage.removeItem(draftKey());
-  localStorage.removeItem("batkahi.admin.draft.new");
+  clearTimeout(state.autosaveTimer);
+  localStorage.removeItem(key);
   state.dirty = false;
   $("save-state").textContent = `कमिट · ${hhmm()}`;
 
@@ -864,9 +885,10 @@ function bindEditor() {
     ev.preventDefault();
     for (const f of list) uploadImage(f);
   });
-  $("pub-close").addEventListener("click", () => {
+  $("pub-close").addEventListener("click", () => $("publish-dialog").close());
+  // Escape closes the dialog too, so the poll cleanup lives on the close event.
+  $("publish-dialog").addEventListener("close", () => {
     clearInterval(state.pollTimer);
-    $("publish-dialog").close();
     if (state.publishedFile) {
       state.publishedFile = null;
       state.posts.delete(state.editing.file);

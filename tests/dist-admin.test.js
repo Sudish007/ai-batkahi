@@ -27,6 +27,8 @@ test("admin page: noindex, no canonical, CSP meta with the PREPAINT hash", () =>
   assert.ok(csp[1].includes("object-src 'none'"));
   assert.ok(csp[1].includes("base-uri 'none'"));
   assert.ok(csp[1].includes("frame-src 'self' blob:"));
+  // A meta CSP governs only what is parsed after it: it must precede the script it hashes.
+  assert.ok(csp.index < html.indexOf(`<script>${PREPAINT}</script>`), "CSP meta before the pre-paint script");
 });
 test("admin page: no inline styles, one bare inline script, the module script", () => {
   assert.ok(!html.includes(' style="'));

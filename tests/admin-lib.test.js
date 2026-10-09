@@ -170,6 +170,9 @@ test("paths: post names, next path, image names, IST date", () => {
   assert.equal(imageFileName("My Photo.PNG", "webp", new Date("2026-10-09")), "20261009-my-photo.webp");
   assert.equal(imageFileName("My Photo.PNG", "jpg", new Date("2026-10-09"), slugify), "20261009-my-photo.jpg");
   assert.equal(imageFileName("तस्वीर.png", "webp", new Date("2026-10-09")), "20261009-image.webp");
+  // Same IST shift as todayIST: 19:00 UTC is already the next day in India.
+  assert.equal(imageFileName("a.png", "webp", new Date("2026-10-08T19:00:00Z")), "20261009-a.webp");
+  assert.equal(imageFileName("a.png", "webp", new Date("2026-10-08T18:00:00Z")), "20261008-a.webp");
   assert.equal(imagePath("g", "x.webp"), "content/images/g/x.webp");
   assert.equal(imageMarkdownPath("g", "x.webp"), "/images/g/x.webp");
   assert.equal(todayIST(new Date("2026-10-08T19:00:00Z")), "2026-10-09");
@@ -190,9 +193,9 @@ test("run-status: classifyRun states incl. stale head_sha", () => {
   assert.deepEqual(classifyRun({ head_sha: sha, status: "completed", conclusion: "failure" }, sha), { state: "failure", label: "असफल (failure)", url: null });
   const now = new Date("2026-10-09T10:00:00Z");
   assert.equal(describeLatest(null, now), null);
-  assert.equal(describeLatest({ status: "completed", conclusion: "success", updated_at: "2026-10-09T09:55:00Z", html_url: "u" }, now).text, "आखिरी deploy: सफल · 5 मिनट पहिले");
-  assert.equal(describeLatest({ status: "completed", conclusion: "failure", updated_at: "2026-10-09T07:00:00Z" }, now).text, "आखिरी deploy: असफल · 3 घंटा पहिले");
-  assert.equal(describeLatest({ status: "in_progress", updated_at: "2026-10-01T07:00:00Z" }, now).text, "आखिरी deploy: चलत बा · 2026-10-01");
+  assert.equal(describeLatest({ status: "completed", conclusion: "success", updated_at: "2026-10-09T09:55:00Z", html_url: "u" }, now).text, "आखिरी deploy (साइट बनावल): सफल · 5 मिनट पहिले");
+  assert.equal(describeLatest({ status: "completed", conclusion: "failure", updated_at: "2026-10-09T07:00:00Z" }, now).text, "आखिरी deploy (साइट बनावल): असफल · 3 घंटा पहिले");
+  assert.equal(describeLatest({ status: "in_progress", updated_at: "2026-10-01T07:00:00Z" }, now).text, "आखिरी deploy (साइट बनावल): चलत बा · 2026-10-01");
 });
 
 /* ---------- validate ---------- */
