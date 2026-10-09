@@ -10,7 +10,7 @@ Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gz
 | --- | --- |
 | `npm test` | 165 tests, 165 pass, 0 fail (~1.5 s; builds first) |
 | `npm run dryrun` | exit 0 — before `6 posts, 3 active categories` → during `7 posts, 4 active categories` (`skip draft: 98-dry-run-draft.md`, `Building 7 posts, 4 active categories`, `posts/dry-run-khabar/index.html` 12 249 B, `width="1" height="1"` on the fixture img, 166 tests pass) → after `6 posts, 3 active categories`; `git status --porcelain content/` empty, `content/images/dry-run/` gone |
-| `npm run audit:admin` | 153 rows, 0 failed (stable over 3 consecutive runs, ~75 s each) |
+| `npm run audit:admin` | 172 rows, 0 failed (153 before the review fixes; added: restore on `#/edit`, link dialog, delete via Enter, field-border contrast × 10) |
 | `npm run audit` | 759 rows, 0 failed; PAGES now has 7 entries incl. `admin/` (101 admin rows across A overflow, B fontFloor, C typeScale, D controls, E contrast, pageErrors, G lightDefault, S screenshot) |
 | `git grep -n "ghp_\|github_pat_"` | only the four fake tokens (`scripts/audit-admin.mjs`, `tests/admin-lib.test.js`, `README.md`) |
 
@@ -18,13 +18,13 @@ Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gz
 
 | Artifact | Bytes |
 | --- | --- |
-| `admin/admin.js` | 34 175 |
-| `admin/lib/*.js` (13 files: 5 verbatim copies of `src/lib`, 8 admin libs) | 26 092 |
-| admin JS budget line (`admin.js + lib`) | 60 267 of 81 920 |
-| `admin/admin.css` | 7 209 |
+| `admin/admin.js` | 35 340 |
+| `admin/lib/*.js` (13 files: 5 verbatim copies of `src/lib`, 8 admin libs) | 26 293 |
+| admin JS budget line (`admin.js + lib`) | 61 633 of 81 920 |
+| `admin/admin.css` | 7 465 |
 | `admin/vendor/marked.esm.js` (reported separately, excluded from the budget) | 46 345 |
-| `admin/index.html` | 22 496 |
-| `admin/index.html` + `styles.css` (39 062) + `main.js` (25 977), the per-page budget measure | 87 535 of 153 600 |
+| `admin/index.html` | 22 631 |
+| `admin/index.html` + `styles.css` (39 062) + `main.js` (25 977), the per-page budget measure | 87 670 of 153 600 |
 
 CSP as shipped in `dist/admin/index.html`:
 
@@ -32,7 +32,7 @@ CSP as shipped in `dist/admin/index.html`:
 default-src 'self'; connect-src 'self' https://api.github.com https://sudish007.github.io; img-src 'self' data: blob: https://raw.githubusercontent.com; style-src 'self'; script-src 'self' 'sha256-ZWI26U6xbtgBkmqXWvoCBFJ5F7/NirY+iNzgFas29nc='; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'
 ```
 
-(`sha256-…` is the hash of the layout's inline pre-paint script, recomputed by `tests/dist-admin.test.js`.) Zero `securitypolicyviolation` events and zero page errors were observed in all 24 audit contexts.
+(`sha256-…` is the hash of the layout's inline pre-paint script, recomputed by `tests/dist-admin.test.js`, which also asserts that the meta precedes the script it hashes — a meta CSP governs only what is parsed after it.) Zero `securitypolicyviolation` events and zero page errors were observed in all 26 audit contexts.
 
 ## `npm run audit:admin` — checks A–S
 
@@ -45,13 +45,15 @@ GitHub mock: `page.route("https://api.github.com/**")` (CORS preflights answered
 | C sign-in errors | 401 → `टोकन गलत बा या खतम हो गइल`; push:false → `एह repo पर लिखे के अधिकार नइखे`; rate limit → `GitHub rate limit — HH:MM पर फेर कोशिश करीं`; nothing stored; token never in `location.href` |
 | D storage | OK unchecked → `sessionStorage` only, input cleared; sign-out → both empty + lock; OK + remember → `localStorage` only; sign-out → both empty |
 | E hygiene | `ghp_FAKE_*` absent from `documentElement.outerHTML`, the activity log (4 lines), console (2 lines) and the URL after 21 mocked requests |
-| F dashboard | 6 rows newest-first with title / title_en / date / category name from the real front matter, `प्रकाशित` chips, `देखीं` → `https://sudish007.github.io/ai-batkahi/posts/<slug>/` with `rel="noopener"`; `6 बतकही · 0 ड्राफ्ट`; deploy strip `आखिरी deploy: सफल · 3 मिनट पहिले` + run link |
+| F dashboard | 6 rows newest-first with title / title_en / date / category name from the real front matter, `प्रकाशित` chips, `देखीं` → `https://sudish007.github.io/ai-batkahi/posts/<slug>/` with `rel="noopener"`; `6 बतकही · 0 ड्राफ्ट`; deploy strip `आखिरी deploy (साइट बनावल): सफल · 3 मिनट पहिले` + run link |
 | G delete | dialog for `06-data-ka-hola.md`; `wrong` keeps `#del-go` disabled and sends nothing; `data-ka-hola` enables; DELETE carried the original sha and `post: delete What is data, and why does AI need so much of it?`; file gone from the fake; 5 rows, `5 बतकही · 0 ड्राफ्ट` |
-| H editor layout | 320/390/820/1440/2560 × light/dark: `scrollWidth <= clientWidth` on `<html>` and `#editor`; no text < 12 px; every visible a/button/input/select/textarea ≥ 40 px (checkbox measured as box ∪ `<label for>`); every input/select/textarea labelled. Found and fixed: the draft checkbox's target was 28–36 px → `.check label` now `min-height: var(--control)` |
+| H editor layout | 320/390/820/1440/2560 × light/dark: `scrollWidth <= clientWidth` on `<html>` and `#editor`; no text < 12 px; every visible a/button/input/select/textarea ≥ 40 px (checkbox measured as box ∪ `<label for>`); every input/select/textarea labelled; every text field's border vs its own background ≥ 3:1 (WCAG 1.4.11 — `--ink-muted` on `--bg`, 6.8:1 light / 7.0:1 dark; the earlier `--rule` border was 1.4:1). Found and fixed: the draft checkbox's target was 28–36 px → `.check label` now `min-height: var(--control)` |
 | I slug | `Dry run post` → `dry-run-post`; existing `llm-kaise-bolela` + publish → `ई slug पहिले से बा` in `#errors` and `#f-slug-error`, dialog not opened |
 | J validation | empty publish lists `#f-title #f-title-en #f-slug #f-tags #f-summary #f-summary-en #f-body`; focus on `#errors` |
 | K preview | iframe `h2` ids `["section-1","second-part","section-3","in-english-heading"]` = Node `renderMarkdown()` + In English; `link[rel=stylesheet]` `/ai-batkahi/styles.css`, `body.page-post`, `lang="bho"`, external link `rel="noopener"`; header toggle → iframe `data-theme="dark"` (`rgb(21, 19, 15)`) and back; `#word-count` `149 शब्द` = `countWords()` |
-| L autosave | `सहेजल · HH:MM` within 3.5 s under `batkahi.admin.draft.new`; reload → `#/new` shows the restore banner with empty fields; `वापस लाईं` restores body (697 chars), title, title_en, slug |
+| L autosave | `सहेजल · HH:MM` within 3.5 s under `batkahi.admin.draft.new`; reload → `#/new` shows the restore banner with empty fields; `वापस लाईं` restores body (697 chars), title, title_en, slug. For an existing post (`#/edit/02-llm-kaise-bolela.md`): no banner on a clean open; an edited body is saved under `batkahi.admin.draft.02-llm-kaise-bolela.md`; after `page.reload()` the form holds the remote body and the banner is visible; `वापस लाईं` restores the edit; the dashboard → edit path shows it too; `हटाईं` removes the key (the banner no longer depends on listing fetch time — it shows whenever the local copy differs from the loaded file) |
+| T link dialog | `/posts/llm-kaise-bolela/` + `x` → `[x](/posts/llm-kaise-bolela/)` inserted at the caret (form `novalidate`, so root-relative links pass); `रद्द` closes the dialog with an invalid value and leaves the body unchanged |
+| U delete via Enter | Enter in `#confirm-slug` with `wrong` → dialog stays open, 0 DELETE; with the right slug → DELETE with the original sha (200), `returnValue="ok"`, dialog closed, 5 rows; `रद्द` (`type="button"`) closes without deleting |
 | M image | 2000×1200 PNG (Chromium screenshot) → dialog `1600×960, 3 KB` → alt `परीक्षण` → PUT `content/images/dry-run-post/20261009-photo-test.webp` (3 274 B, `imageSize()` 1600×960) with `image: 20261009-photo-test.webp for dry-run-post [skip ci]`, no run created; `![परीक्षण](/images/dry-run-post/20261009-photo-test.webp)` inserted; preview `<img src>` is `blob:`. Chromium produced **WebP** |
 | N publish | PUT `content/posts/07-dry-run-post.md`, `post: Dry run post`, no sha; decoded file parses to the typed title/title_en/date/category `khabar`/tags/summary/summary_en, no `draft`, body unchanged; step 2 `कतार में` → `चलत बा` → `सफल`, step 3 live `https://sudish007.github.io/ai-batkahi/posts/dry-run-post/`, `#pub-result` `लाइव बा`, copy button, slug locked, autosave key removed. The 10 s polling was fast-forwarded with `page.clock.install()` + `page.clock.runFor(10500)` (available in Playwright 1.64); no real-time waiting |
 | O failure | `failNext` → `08-dry-run-post-two.md`; step 2 `failed` / `असफल (failure)`, step 3 pending, `CI असफल — run देखीं, ठीक क के फेर प्रकाशित करीं`, run link = the run's `html_url`, no live link |

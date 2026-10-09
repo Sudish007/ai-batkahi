@@ -384,6 +384,20 @@ async function fillPost(page, post, body = FIXTURE_BODY) {
   await page.waitForTimeout(500); // preview debounce (300 ms)
 }
 
+/* ---------- WCAG contrast from computed "rgb(r, g, b)" strings ---------- */
+function luminance(rgb) {
+  const m = String(rgb).match(/\d+(\.\d+)?/g) || [0, 0, 0];
+  const [r, g, b] = m.slice(0, 3).map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
 /* ---------- in-page evaluator for H (layout matrix) ---------- */
 function layoutEval() {
   const de = document.documentElement;
@@ -409,8 +423,13 @@ function layoutEval() {
   }
   out.shortControls = [];
   out.unlabelled = [];
+  out.fieldBorders = []; // non-text contrast (WCAG 1.4.11): field boundary vs its own background
   for (const el of document.querySelectorAll("a, button, input, select, textarea")) {
     if (!visible(el)) continue;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && !/^(checkbox|file)$/.test(el.type)) {
+      const cs = getComputedStyle(el);
+      out.fieldBorders.push({ el: desc(el), border: cs.borderTopColor, bg: cs.backgroundColor });
+    }
     let r = el.getBoundingClientRect();
     // A checkbox's target is the box plus its <label for>: measure their union.
     if (el.tagName === "INPUT" && el.type === "checkbox") {
@@ -595,6 +614,9 @@ async function editorLayout() {
       record("H fontFloor", "editor", width, theme, r.small.length === 0, r.small.length ? r.small : "no text < 12px");
       record("H controls", "editor", width, theme, r.shortControls.length === 0, r.shortControls.length ? r.shortControls : "all visible a/button/input/select/textarea >= 40px");
       record("H labels", "editor", width, theme, r.unlabelled.length === 0, r.unlabelled.length ? r.unlabelled : "every input/select/textarea labelled");
+      const borders = r.fieldBorders.map((f) => ({ ...f, ratio: Math.round(contrast(f.border, f.bg) * 100) / 100 }));
+      const lowBorders = borders.filter((f) => f.ratio < 3);
+      record("H fieldBorderContrast >= 3:1", "editor", width, theme, borders.length > 0 && lowBorders.length === 0, lowBorders.length ? lowBorders : { fields: borders.length, min: Math.min(...borders.map((f) => f.ratio)), sample: borders[0] });
       await closeCtx(ctx, page, "editor");
     }
   }
@@ -706,7 +728,91 @@ async function editorBehaviour() {
   const mdRe = /!\[परीक्षण\]\(\/images\/dry-run-post\/\d{8}-photo-test\.(webp|jpg)\)/;
   const mOk = pngDims.width === 2000 && pngDims.height === 1200 && /^1600×960, \d+ KB/.test(imgInfo) && !!nm && imgPut && imgPut.status === 201 && imgCommit && imgCommit.message.startsWith("image: ") && imgCommit.message.includes("[skip ci]") && imgCommit.message === `image: ${imgPath.split("/").pop()} for dry-run-post [skip ci]` && decodedSize && decodedSize.width === 1600 && decodedSize.height === 960 && mdRe.test(m.body) && m.previewImgSrc && m.previewImgSrc.startsWith("blob:") && !m.dialogOpen && fake.runs.length === 0;
   record("M image", "editor", 1440, "light", mOk, { sourcePng: pngDims, imgInfo, imgPath, ext, bytes: imgFile && imgFile.content.length, decodedSize, message: imgCommit && imgCommit.message, inserted: (m.body.match(mdRe) || [null])[0], previewImgSrc: m.previewImgSrc && m.previewImgSrc.slice(0, 5), runsCreated: fake.runs.length });
+
+  // L2: autosave + restore for an EXISTING post (#/edit/<file>) across a reload,
+  // and the dashboard -> edit path; the banner must not depend on fetch timing.
+  const edited = REAL_POSTS[1]; // 02-llm-kaise-bolela.md
+  const editKey = `batkahi.admin.draft.${edited.name}`;
+  await page.evaluate(() => localStorage.removeItem("batkahi.admin.draft.new"));
+  await go(page, "#/");
+  await waitDashboard(page);
+  await go(page, `#/edit/${edited.name}`);
+  await page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await page.waitForTimeout(300);
+  const noBannerClean = await page.evaluate(() => document.getElementById("restore").hidden);
+  const editedBody = edited.body.trim() + "\n\nनया पैराग्राफ जे सिर्फ local में बा।";
+  await page.fill("#f-body", editedBody);
+  await page.waitForFunction(() => /सहेजल · \d\d:\d\d/.test(document.getElementById("save-state").textContent), null, { timeout: 3500 }).catch(() => {});
+  const l2Saved = await page.evaluate((k) => { const raw = localStorage.getItem(k); return raw ? JSON.parse(raw).body.length : null; }, editKey);
+  await page.reload({ waitUntil: "load" });
+  await settle(page);
+  await page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await page.waitForTimeout(300);
+  const l2Reload = await page.evaluate(() => ({ hash: location.hash, restore: !document.getElementById("restore").hidden, bodyIsRemote: document.getElementById("f-body").value.trim().length }));
+  await page.click("#restore-yes");
+  await page.waitForTimeout(300);
+  const l2Restored = await page.evaluate(() => ({ body: document.getElementById("f-body").value, restoreHidden: document.getElementById("restore").hidden }));
+  // Dashboard -> edit (the listing is re-fetched on the way) must show it as well.
+  await go(page, "#/");
+  await waitDashboard(page);
+  await go(page, `#/edit/${edited.name}`);
+  await page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await page.waitForTimeout(300);
+  const l2ViaDash = await page.evaluate(() => !document.getElementById("restore").hidden);
+  await page.click("#restore-no");
+  const l2Discarded = await page.evaluate((k) => ({ key: localStorage.getItem(k), hidden: document.getElementById("restore").hidden }), editKey);
+  record("L autosave + restore (#/edit)", "editor", 1440, "light", noBannerClean && l2Saved === editedBody.length && l2Reload.hash === `#/edit/${edited.name}` && l2Reload.restore && l2Reload.bodyIsRemote === edited.body.trim().length && l2Restored.body === editedBody && l2Restored.restoreHidden && l2ViaDash && l2Discarded.key === null && l2Discarded.hidden, { noBannerClean, savedChars: l2Saved, reload: l2Reload, restored: l2Restored.body === editedBody, viaDashboard: l2ViaDash, discarded: l2Discarded });
   await closeCtx(ctx, page, "editor-behaviour");
+}
+
+async function dialogs() {
+  // T: link dialog accepts a root-relative URL and can be cancelled with any value.
+  const a = await newCtx({ width: 1440, token: TOKEN_OK });
+  await open(a.page, "#/new");
+  await waitEditor(a.page);
+  await a.page.fill("#f-body", "देखीं ");
+  await a.page.evaluate(() => { const t = document.getElementById("f-body"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); });
+  await a.page.click('.toolbar [data-md="link"]');
+  await a.page.waitForFunction(() => document.getElementById("link-dialog").open, null, { timeout: 3000 });
+  await a.page.fill("#link-url", "/posts/llm-kaise-bolela/");
+  await a.page.fill("#link-text", "x");
+  await a.page.click('#link-dialog button[value="ok"]');
+  await a.page.waitForTimeout(300);
+  const t1 = await a.page.evaluate(() => ({ open: document.getElementById("link-dialog").open, body: document.getElementById("f-body").value }));
+  await a.page.click('.toolbar [data-md="link"]');
+  await a.page.waitForFunction(() => document.getElementById("link-dialog").open, null, { timeout: 3000 });
+  await a.page.fill("#link-url", "not a url");
+  await a.page.click('#link-dialog button[value="cancel"]');
+  await a.page.waitForTimeout(300);
+  const t2 = await a.page.evaluate(() => ({ open: document.getElementById("link-dialog").open, body: document.getElementById("f-body").value }));
+  record("T link dialog root-relative + cancel", "editor", 1440, "light", !t1.open && t1.body === "देखीं [x](/posts/llm-kaise-bolela/)" && !t2.open && t2.body === t1.body, { afterInsert: t1, afterCancel: t2 });
+  await closeCtx(a.ctx, a.page, "link-dialog");
+
+  // U: Enter in the delete confirmation deletes once the slug matches, never before.
+  const b = await newCtx({ width: 1440, token: TOKEN_OK });
+  await open(b.page);
+  await waitDashboard(b.page);
+  const target = REAL_POSTS[REAL_POSTS.length - 1];
+  const targetPath = `content/posts/${target.name}`;
+  const originalSha = b.fake.files.get(targetPath).sha;
+  await b.page.click(`#post-list li:has(a[href="#/edit/${target.name}"]) button.danger`);
+  await b.page.waitForFunction(() => document.getElementById("confirm-delete").open, null, { timeout: 3000 });
+  await b.page.fill("#confirm-slug", "wrong");
+  await b.page.press("#confirm-slug", "Enter");
+  await b.page.waitForTimeout(300);
+  const u1 = { open: await b.page.evaluate(() => document.getElementById("confirm-delete").open), deletes: b.fake.deletes.length };
+  await b.page.fill("#confirm-slug", target.slug);
+  await b.page.press("#confirm-slug", "Enter");
+  await b.page.waitForFunction((n) => !document.getElementById("confirm-delete").open && document.getElementById("post-list").getAttribute("aria-busy") === "false" && document.getElementById("post-list").children.length === n && !document.getElementById("post-list").classList.contains("skeleton"), REAL_POSTS.length - 1, { timeout: 10000 }).catch(() => {});
+  const u2 = { open: await b.page.evaluate(() => document.getElementById("confirm-delete").open), returnValue: await b.page.evaluate(() => document.getElementById("confirm-delete").returnValue), deletes: b.fake.deletes.map((d) => ({ path: d.path, sha: d.sha === originalSha ? "(original sha)" : d.sha, status: d.status })), fileGone: !b.fake.files.has(targetPath), rows: await b.page.$$eval("#post-list > li", (l) => l.length) };
+  // Cancel button closes without deleting.
+  await b.page.click(`#post-list li button.danger`);
+  await b.page.waitForFunction(() => document.getElementById("confirm-delete").open, null, { timeout: 3000 });
+  await b.page.click("#del-cancel");
+  await b.page.waitForTimeout(200);
+  const u3 = { open: await b.page.evaluate(() => document.getElementById("confirm-delete").open), deletes: b.fake.deletes.length };
+  record("U delete via Enter", "admin", 1440, "light", u1.open && u1.deletes === 0 && !u2.open && u2.returnValue === "ok" && u2.deletes.length === 1 && u2.deletes[0].path === targetPath && u2.deletes[0].sha === "(original sha)" && u2.deletes[0].status === 200 && u2.fileGone && u2.rows === REAL_POSTS.length - 1 && !u3.open && u3.deletes === 1, { wrongSlugEnter: u1, rightSlugEnter: u2, cancel: u3 });
+  await closeCtx(b.ctx, b.page, "delete-dialog");
 }
 
 async function publishFlows() {
@@ -868,7 +974,7 @@ BASE = server.origin + config.basePath;
 ADMIN = BASE + "admin/";
 console.log("Auditing " + ADMIN + " (GitHub mocked; real publish path UNTESTED)");
 browser = await chromium.launch({ headless: true });
-const STEPS = { lock, prepaintDark, signInFlows, dashboard, editorLayout, editorBehaviour, publishFlows, screenshots };
+const STEPS = { lock, prepaintDark, signInFlows, dashboard, editorLayout, editorBehaviour, dialogs, publishFlows, screenshots };
 const only = process.argv.slice(2);
 try {
   for (const [name, fn] of Object.entries(STEPS)) {

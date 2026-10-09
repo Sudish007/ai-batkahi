@@ -47,7 +47,8 @@ export function layout({
   noindex = false,
   mainClass = "container",
   progress = false,
-  head = "", // extra <head> markup, emitted after the styles.css link (admin: CSP + admin.css)
+  headStart = "", // <head> markup emitted BEFORE the inline pre-paint script (admin: CSP meta)
+  head = "", // extra <head> markup, emitted after the styles.css link (admin: admin.css)
   foot = "", // extra end-of-body markup, emitted after main.js (admin: module script)
 }) {
   const fullTitle = title ? `${title} · ${config.title}` : `${config.title} · ${config.tagline}`;
@@ -80,7 +81,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <link rel="icon" href="${url("favicon.svg")}" type="image/svg+xml">
 <link rel="icon" href="${url("favicon.ico")}" sizes="32x32">
 <link rel="apple-touch-icon" href="${url("apple-touch-icon.png")}">
-<script>${PREPAINT}</script>
+${headStart ? `${headStart}\n` : ""}<script>${PREPAINT}</script>
 ${preloads}
 <link rel="stylesheet" href="${url("styles.css")}">
 ${head ? `${head}\n` : ""}</head>

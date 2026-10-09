@@ -194,24 +194,24 @@ ${field({ id: "f-instagram", label: "Instagram लिंक (वैकल्प�
     <p id="del-text"></p>
     <label for="confirm-slug">पक्का करे खातिर slug लिखीं</label>
     <input id="confirm-slug" type="text" autocomplete="off">
-    <div class="actions"><button type="button" id="del-go" disabled>हटाईं</button><button type="submit" value="cancel">रद्द</button></div>
+    <div class="actions"><button type="submit" id="del-go" value="ok" disabled>हटाईं</button><button type="button" id="del-cancel">रद्द</button></div>
   </form>
 </dialog>
 <dialog id="publish-dialog" class="admin-dialog" aria-labelledby="pub-heading">
   <h2 id="pub-heading">प्रकाशित करत बानी</h2>
   <p id="pub-file" lang="en"></p>
+  <p class="hint">प्रकाशित होखे में लगभग एक मिनट लागेला (GitHub Actions): commit (बदलाव दर्ज) → run (Actions चलाव) → deploy (साइट बनावल)।</p>
   <ol class="steps" id="pub-steps">
     <li data-state="pending"><span class="step-label">फाइल कमिट</span> <span class="step-status"></span></li>
     <li data-state="pending"><span class="step-label">Pages build</span> <span class="step-status"></span></li>
     <li data-state="pending"><span class="step-label">लाइव</span> <span class="step-status"></span></li>
   </ol>
-  <p class="hint">प्रकाशित होखे में लगभग एक मिनट लागेला (GitHub Actions)।</p>
   <p id="pub-result" role="status"></p>
   <p><a id="run-link" href="${repoUrl}/actions" rel="noopener" hidden lang="en">Actions run देखीं</a> <a id="live-link" href="${config.siteUrl}/" rel="noopener" hidden>लाइव बतकही खोलीं</a></p>
   <div class="actions"><button type="button" id="copy-live" hidden>लिंक कॉपी करीं</button><button type="button" id="pub-close">बंद करीं</button></div>
 </dialog>
 <dialog id="link-dialog" class="admin-dialog">
-  <form method="dialog">
+  <form method="dialog" novalidate>
     <h2>लिंक जोड़ीं</h2>
     <label for="link-url">URL</label>
     <input id="link-url" type="url">
@@ -245,7 +245,9 @@ ${field({ id: "f-instagram", label: "Instagram लिंक (वैकल्प�
     bodyClass: "page-admin",
     mainClass: "container admin",
     noindex: true,
-    head: `<meta http-equiv="Content-Security-Policy" content="${csp}">\n<link rel="stylesheet" href="${url("admin/admin.css")}">`,
+    // The CSP must precede the inline pre-paint script it hashes, or the hash gates nothing.
+    headStart: `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
+    head: `<link rel="stylesheet" href="${url("admin/admin.css")}">`,
     foot: `<script type="module" src="${url("admin/admin.js")}"></script>`,
   });
 }

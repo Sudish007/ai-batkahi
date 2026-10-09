@@ -24,11 +24,12 @@ export function relativeTime(iso, now = new Date()) {
   return then.toISOString().slice(0, 10);
 }
 
-// "आखिरी deploy: सफल · 5 मिनट पहिले"; null when there is no run yet.
+// "आखिरी deploy (साइट बनावल): सफल · 5 मिनट पहिले"; null when there is no run yet.
+// "deploy" is glossed here because this is its first appearance on the dashboard.
 export function describeLatest(run, now = new Date()) {
   if (!run) return null;
   let label = "चलत बा";
   if (run.status === "completed") label = run.conclusion === "success" ? "सफल" : "असफल";
   const when = relativeTime(run.updated_at || run.created_at, now);
-  return { text: `आखिरी deploy: ${label}${when ? ` · ${when}` : ""}`, url: run.html_url || null, state: label };
+  return { text: `आखिरी deploy (साइट बनावल): ${label}${when ? ` · ${when}` : ""}`, url: run.html_url || null, state: label };
 }

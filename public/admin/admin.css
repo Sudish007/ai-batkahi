@@ -45,7 +45,9 @@
   width: 100%;
   min-height: var(--control);
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--rule);
+  /* --ink-muted on --bg is 6.8:1 (dark 7.0:1); --rule would be 1.4:1, below the
+     3:1 non-text minimum (WCAG 1.4.11) for a control's boundary. */
+  border: 1px solid var(--ink-muted);
   border-radius: 4px;
   background: var(--bg);
   color: var(--ink);
@@ -100,8 +102,10 @@
   cursor: default;
 }
 
-.admin button[type="submit"],
-.admin #publish {
+/* Filled = the primary action only; every "रद्द" stays outlined. */
+.admin #publish,
+.admin #signin-btn,
+.admin dialog button[value="ok"] {
   background: var(--ink);
   color: var(--bg);
 }

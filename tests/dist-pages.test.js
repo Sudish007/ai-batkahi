@@ -142,14 +142,25 @@ test("footer has copyright, Instagram, feed and BhojVerse links", () => {
   assert.ok(home.includes("https://sudish007.github.io/bhojverse-site/"));
 });
 
-test("post pages have share controls, tags and prev/next where applicable", () => {
-  const post = read(join(DIST, "posts", "llm-kaise-bolela", "index.html"));
-  assert.match(post, /<div class="share" hidden>/);
-  assert.match(post, /class="copy-link">लिंक कॉपी करीं</);
-  assert.match(post, /<ul class="tags"/);
-  assert.match(post, /<nav class="post-nav"/);
-  assert.match(post, /rel="prev"/);
-  assert.match(post, /rel="next"/);
+test("every post page has share controls, tags and prev/next derived from content order", () => {
+  // Same order as loadPosts: newest first, filename ascending on equal dates.
+  // prev = the item above, next = the item below, so only the ends lack one.
+  const ordered = contentPosts().sort((a, b) =>
+    a.data.date === b.data.date ? a.file.localeCompare(b.file) : b.data.date.localeCompare(a.data.date),
+  );
+  assert.ok(ordered.length > 0);
+  ordered.forEach(({ file }, i) => {
+    const slug = slugFromFilename(file);
+    const post = read(join(DIST, "posts", slug, "index.html"));
+    assert.match(post, /<div class="share" hidden>/, slug);
+    assert.match(post, /class="copy-link">लिंक कॉपी करीं</, slug);
+    assert.match(post, /<ul class="tags"/, slug);
+    const hasPrev = i > 0;
+    const hasNext = i < ordered.length - 1;
+    assert.equal(/<nav class="post-nav"/.test(post), hasPrev || hasNext, `${slug}: post-nav`);
+    assert.equal(/rel="prev"/.test(post), hasPrev, `${slug}: rel=prev`);
+    assert.equal(/rel="next"/.test(post), hasNext, `${slug}: rel=next`);
+  });
 });
 
 test("every post page: one share block, details ToC with In English, progress bar, rail", () => {
