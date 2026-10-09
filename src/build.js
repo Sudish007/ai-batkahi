@@ -16,6 +16,7 @@ import { postPage } from "./templates/post.js";
 import { categoryPage } from "./templates/category.js";
 import { aboutPage } from "./templates/about.js";
 import { notFoundPage } from "./templates/not-found.js";
+import { adminPage } from "./templates/admin.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
@@ -29,6 +30,11 @@ const BUDGET_CSS = 60 * KB;
 const BUDGET_JS = 60 * KB;
 const BUDGET_PAGE = 150 * KB; // one HTML page + styles.css + main.js
 const BUDGET_FONTS = 500 * KB; // sum of dist/fonts/*
+const BUDGET_ADMIN_JS = 80 * KB; // admin/admin.js + admin/lib/*.js (vendor marked excluded)
+
+// Shared libraries the browser admin imports: byte copies of src/lib files
+// (they import nothing from node:) plus the ESM build of marked.
+const ADMIN_SHARED_LIBS = ["markdown-core.js", "slugify.js", "xml.js", "reading-time.js", "frontmatter.js"];
 
 function write(relPath, content) {
   const out = join(DIST, relPath);
@@ -44,6 +50,24 @@ function copyPublic() {
   const cssPath = join(DIST, "styles.css");
   const css = readFileSync(cssPath, "utf8").replace(/__BASE__/g, config.basePath);
   writeFileSync(cssPath, css, "utf8");
+}
+
+function copyAdminLibs() {
+  const libDir = join(DIST, "admin", "lib");
+  const vendorDir = join(DIST, "admin", "vendor");
+  mkdirSync(libDir, { recursive: true });
+  mkdirSync(vendorDir, { recursive: true });
+  let total = 0;
+  for (const f of ADMIN_SHARED_LIBS) {
+    const src = join(ROOT, "src", "lib", f);
+    cpSync(src, join(libDir, f));
+    total += statSync(src).size;
+  }
+  const marked = join(ROOT, "node_modules", "marked", "lib", "marked.esm.js");
+  cpSync(marked, join(vendorDir, "marked.esm.js"));
+  cpSync(join(ROOT, "node_modules", "marked", "LICENSE"), join(vendorDir, "marked.LICENSE"));
+  console.log(`  admin/lib/ (${ADMIN_SHARED_LIBS.length} shared files)${" ".repeat(21)} ${String(total).padStart(7)} B`);
+  console.log(`  ${"admin/vendor/marked.esm.js".padEnd(48)} ${String(statSync(marked).size).padStart(7)} B`);
 }
 
 function copyFonts() {
@@ -87,6 +111,18 @@ function assertBudgets() {
   const fontsDir = join(DIST, "fonts");
   const fonts = walk(fontsDir).reduce((sum, p) => sum + size(p), 0);
   if (fonts > BUDGET_FONTS) throw over(fontsDir, fonts, BUDGET_FONTS);
+
+  // Admin: the UI module plus every lib it imports; the vendored marked copy
+  // is reported separately and does not count against the budget.
+  const adminDir = join(DIST, "admin");
+  const adminJs =
+    size(join(adminDir, "admin.js")) +
+    walk(join(adminDir, "lib"))
+      .filter((f) => f.endsWith(".js"))
+      .reduce((sum, p) => sum + size(p), 0);
+  console.log(`  ${"admin js (admin.js + lib)".padEnd(48)} ${String(adminJs).padStart(7)} B  (budget ${BUDGET_ADMIN_JS} B)`);
+  console.log(`  ${"admin/admin.css".padEnd(48)} ${String(size(join(adminDir, "admin.css"))).padStart(7)} B`);
+  if (adminJs > BUDGET_ADMIN_JS) throw over(adminDir, adminJs, BUDGET_ADMIN_JS);
 }
 
 function build() {
@@ -100,6 +136,7 @@ function build() {
 
   console.log(`Building ${posts.length} posts, ${activeCategories.length} active categories -> dist/`);
   copyPublic();
+  copyAdminLibs();
   if (existsSync(IMAGES_DIR)) cpSync(IMAGES_DIR, join(DIST, "images"), { recursive: true });
   copyFonts();
 
@@ -117,6 +154,7 @@ function build() {
   }
   write("about/index.html", aboutPage({ activeCategories, allCategories: categories }));
   write("404.html", notFoundPage());
+  write("admin/index.html", adminPage({ categories }));
   write("feed.xml", atomFeed(posts));
   write("sitemap.xml", sitemap(posts, activeCategories));
   write("robots.txt", robots());

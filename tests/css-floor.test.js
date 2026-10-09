@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { DIST, read } from "./helpers.js";
 
 const css = read(join(DIST, "styles.css"));
+// admin.css obeys the same floor and bans; its tokens come from styles.css.
+const adminCss = read(join(DIST, "admin", "admin.css"));
 const ROOT_PX = 16;
 
 // Resolve a length (rem | em | px) or the first argument of a clamp() to px.
@@ -38,8 +40,8 @@ test("every --fs-* token is at least 12px", () => {
   }
 });
 
-test("every font-size declaration resolves to >= 12px", () => {
-  for (const m of css.matchAll(/font-size:\s*([^;]+);/g)) {
+test("every font-size declaration resolves to >= 12px (styles.css and admin.css)", () => {
+  for (const m of (css + adminCss).matchAll(/font-size:\s*([^;]+);/g)) {
     const v = m[1].trim();
     if (v === "inherit") continue;
     const varRef = v.match(/^var\((--fs-[a-z0-9]+)\)$/);
@@ -60,9 +62,11 @@ test("body font-size is >= 16px and uses --fs-base", () => {
   assert.ok(tokens["--fs-base"] >= 16, `--fs-base = ${tokens["--fs-base"]}px`);
 });
 
-test("no gradients, shadows or filters in the stylesheet", () => {
-  assert.ok(!/gradient/.test(css));
-  assert.ok(!/box-shadow/.test(css));
-  assert.ok(!/\bfilter:/.test(css));
-  assert.ok(!/fonts\.googleapis/.test(css));
+test("no gradients, shadows or filters in the stylesheets", () => {
+  for (const sheet of [css, adminCss]) {
+    assert.ok(!/gradient/.test(sheet));
+    assert.ok(!/box-shadow/.test(sheet));
+    assert.ok(!/\bfilter:/.test(sheet));
+    assert.ok(!/fonts\.googleapis/.test(sheet));
+  }
 });

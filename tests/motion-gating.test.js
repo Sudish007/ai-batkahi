@@ -65,6 +65,11 @@ test("every transition/animation/@view-transition in dist/styles.css is gated", 
   assert.deepEqual(ungatedMotion(css), []);
 });
 
+test("admin.css declares no motion at all", () => {
+  const adminCss = read(join(DIST, "admin", "admin.css"));
+  assert.deepEqual(ungatedMotion(adminCss), []);
+  assert.ok(!/\b(transition|animation)\b/.test(adminCss.replace(/\/\*[\s\S]*?\*\//g, "")));
+});
 test("the stylesheet has exactly one reduced-motion gate block", () => {
   const css = read(join(DIST, "styles.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   const gates = css.split(GATE).length - 1;

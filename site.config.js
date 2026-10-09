@@ -16,6 +16,8 @@ export default {
     github: "https://github.com/Sudish007",
     site: "https://sudish.dev",
   },
+  // The GitHub repository the browser admin (dist/admin/) commits to.
+  repo: { owner: "Sudish007", name: "ai-batkahi", branch: "main" },
   bhojverseUrl: "https://sudish007.github.io/bhojverse-site/",
   bhojverseRepo: "https://github.com/Sudish007/bhojverse-site",
   startedLabel: "अक्टूबर 2026",
