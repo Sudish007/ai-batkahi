@@ -1,3 +1,72 @@
+# v2 Phase 2 — admin (local, 2026-10-09)
+
+Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gzip) on `127.0.0.1`; Chromium driven by Playwright 1.64 loaded from `PW_PATH`. Not deployed.
+
+**Real GitHub publish: UNTESTED — no token exists; every GitHub call in the audit is mocked. First real use should be a throwaway draft.**
+
+## Gates
+
+| Gate | Result |
+| --- | --- |
+| `npm test` | 165 tests, 165 pass, 0 fail (~1.5 s; builds first) |
+| `npm run dryrun` | exit 0 — before `6 posts, 3 active categories` → during `7 posts, 4 active categories` (`skip draft: 98-dry-run-draft.md`, `Building 7 posts, 4 active categories`, `posts/dry-run-khabar/index.html` 12 249 B, `width="1" height="1"` on the fixture img, 166 tests pass) → after `6 posts, 3 active categories`; `git status --porcelain content/` empty, `content/images/dry-run/` gone |
+| `npm run audit:admin` | 153 rows, 0 failed (stable over 3 consecutive runs, ~75 s each) |
+| `npm run audit` | 759 rows, 0 failed; PAGES now has 7 entries incl. `admin/` (101 admin rows across A overflow, B fontFloor, C typeScale, D controls, E contrast, pageErrors, G lightDefault, S screenshot) |
+| `git grep -n "ghp_\|github_pat_"` | only the four fake tokens (`scripts/audit-admin.mjs`, `tests/admin-lib.test.js`, `README.md`) |
+
+## Build sizes
+
+| Artifact | Bytes |
+| --- | --- |
+| `admin/admin.js` | 34 175 |
+| `admin/lib/*.js` (13 files: 5 verbatim copies of `src/lib`, 8 admin libs) | 26 092 |
+| admin JS budget line (`admin.js + lib`) | 60 267 of 81 920 |
+| `admin/admin.css` | 7 209 |
+| `admin/vendor/marked.esm.js` (reported separately, excluded from the budget) | 46 345 |
+| `admin/index.html` | 22 496 |
+| `admin/index.html` + `styles.css` (39 062) + `main.js` (25 977), the per-page budget measure | 87 535 of 153 600 |
+
+CSP as shipped in `dist/admin/index.html`:
+
+```
+default-src 'self'; connect-src 'self' https://api.github.com https://sudish007.github.io; img-src 'self' data: blob: https://raw.githubusercontent.com; style-src 'self'; script-src 'self' 'sha256-ZWI26U6xbtgBkmqXWvoCBFJ5F7/NirY+iNzgFas29nc='; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'
+```
+
+(`sha256-…` is the hash of the layout's inline pre-paint script, recomputed by `tests/dist-admin.test.js`.) Zero `securitypolicyviolation` events and zero page errors were observed in all 24 audit contexts.
+
+## `npm run audit:admin` — checks A–S
+
+GitHub mock: `page.route("https://api.github.com/**")` (CORS preflights answered with 204 + `Access-Control-Allow-*`, `Access-Control-Expose-Headers: x-ratelimit-remaining, x-ratelimit-reset`) over an in-memory repo seeded from the six real `content/posts/*.md` (sha1 shas, 60-column base64 like GitHub); `raw.githubusercontent.com` returns a 1×1 PNG. Tokens: `ghp_FAKE_OK` (push), `ghp_FAKE_READONLY` (push false), `ghp_FAKE_RATE` (403 + `x-ratelimit-remaining: 0`), anything else 401.
+
+| Check | Result |
+| --- | --- |
+| A lock | lock visible; dashboard/editor/activity hidden; none of the six titles in `body.innerText`; sign-in button enabled by JS; 0 CSP violations, 0 page errors; light under OS dark (`rgb(250, 246, 239)`, `theme-color #FAF6EF`) |
+| B prepaint-dark | stored `theme=dark` → `data-theme="dark"`, `theme-color #15130F`, body `rgb(21, 19, 15)` on full load; same with `main.js` and `admin.js` aborted (inline hashed script alone), 0 CSP violations |
+| C sign-in errors | 401 → `टोकन गलत बा या खतम हो गइल`; push:false → `एह repo पर लिखे के अधिकार नइखे`; rate limit → `GitHub rate limit — HH:MM पर फेर कोशिश करीं`; nothing stored; token never in `location.href` |
+| D storage | OK unchecked → `sessionStorage` only, input cleared; sign-out → both empty + lock; OK + remember → `localStorage` only; sign-out → both empty |
+| E hygiene | `ghp_FAKE_*` absent from `documentElement.outerHTML`, the activity log (4 lines), console (2 lines) and the URL after 21 mocked requests |
+| F dashboard | 6 rows newest-first with title / title_en / date / category name from the real front matter, `प्रकाशित` chips, `देखीं` → `https://sudish007.github.io/ai-batkahi/posts/<slug>/` with `rel="noopener"`; `6 बतकही · 0 ड्राफ्ट`; deploy strip `आखिरी deploy: सफल · 3 मिनट पहिले` + run link |
+| G delete | dialog for `06-data-ka-hola.md`; `wrong` keeps `#del-go` disabled and sends nothing; `data-ka-hola` enables; DELETE carried the original sha and `post: delete What is data, and why does AI need so much of it?`; file gone from the fake; 5 rows, `5 बतकही · 0 ड्राफ्ट` |
+| H editor layout | 320/390/820/1440/2560 × light/dark: `scrollWidth <= clientWidth` on `<html>` and `#editor`; no text < 12 px; every visible a/button/input/select/textarea ≥ 40 px (checkbox measured as box ∪ `<label for>`); every input/select/textarea labelled. Found and fixed: the draft checkbox's target was 28–36 px → `.check label` now `min-height: var(--control)` |
+| I slug | `Dry run post` → `dry-run-post`; existing `llm-kaise-bolela` + publish → `ई slug पहिले से बा` in `#errors` and `#f-slug-error`, dialog not opened |
+| J validation | empty publish lists `#f-title #f-title-en #f-slug #f-tags #f-summary #f-summary-en #f-body`; focus on `#errors` |
+| K preview | iframe `h2` ids `["section-1","second-part","section-3","in-english-heading"]` = Node `renderMarkdown()` + In English; `link[rel=stylesheet]` `/ai-batkahi/styles.css`, `body.page-post`, `lang="bho"`, external link `rel="noopener"`; header toggle → iframe `data-theme="dark"` (`rgb(21, 19, 15)`) and back; `#word-count` `149 शब्द` = `countWords()` |
+| L autosave | `सहेजल · HH:MM` within 3.5 s under `batkahi.admin.draft.new`; reload → `#/new` shows the restore banner with empty fields; `वापस लाईं` restores body (697 chars), title, title_en, slug |
+| M image | 2000×1200 PNG (Chromium screenshot) → dialog `1600×960, 3 KB` → alt `परीक्षण` → PUT `content/images/dry-run-post/20261009-photo-test.webp` (3 274 B, `imageSize()` 1600×960) with `image: 20261009-photo-test.webp for dry-run-post [skip ci]`, no run created; `![परीक्षण](/images/dry-run-post/20261009-photo-test.webp)` inserted; preview `<img src>` is `blob:`. Chromium produced **WebP** |
+| N publish | PUT `content/posts/07-dry-run-post.md`, `post: Dry run post`, no sha; decoded file parses to the typed title/title_en/date/category `khabar`/tags/summary/summary_en, no `draft`, body unchanged; step 2 `कतार में` → `चलत बा` → `सफल`, step 3 live `https://sudish007.github.io/ai-batkahi/posts/dry-run-post/`, `#pub-result` `लाइव बा`, copy button, slug locked, autosave key removed. The 10 s polling was fast-forwarded with `page.clock.install()` + `page.clock.runFor(10500)` (available in Playwright 1.64); no real-time waiting |
+| O failure | `failNext` → `08-dry-run-post-two.md`; step 2 `failed` / `असफल (failure)`, step 3 pending, `CI असफल — run देखीं, ठीक क के फेर प्रकाशित करीं`, run link = the run's `html_url`, no live link |
+| P draft | `09-dry-run-draft.md`, `draft: Dry run draft [skip ci]`, file starts `---\ndraft: true\n`, 0 runs created, steps 2–3 `deploy नइखे (ड्राफ्ट)`, `ड्राफ्ट सहेजल गइल (साइट पर ना देखाई)` |
+| Q update | `#/edit/02-llm-kaise-bolela.md`: slug `readOnly`, heading `संपादन: ChatGPT जइसन AI कइसे बोलेला?`, all fields = the real file; summary changed → PUT with the previous sha (200), `post: How does an AI like ChatGPT talk?`, decoded front matter equal except summary, body byte-equal after trim |
+| R stale sha | fake file mutated → PUT 409 → native `confirm` accepted → GET fresh sha → second PUT 200 with the fresh sha; step 1 done |
+| S screenshots | 12 viewport-only PNGs (`admin-{lock,dashboard,editor}-{390x844,1440x900}-{light,dark}.png`), header sizes = viewport, ≤ 4000 px |
+| per-context | 24 contexts × (csp, pageErrors, tokenHygiene console/url) = 72 rows, all ok |
+
+Admin defects fixed by this audit (in `public/admin/admin.css`): draft/remember checkbox labels are now 44 px tap targets; the inline links in the lock-screen help/security lists get `padding-block: 0.6em` so their hit boxes are ≥ 40 px at every width (they measured 22–29 px in the public matrix).
+
+Not exercised: the real GitHub API (no token), Firefox/Safari, the 10-minute poll cap, `QuotaExceededError`, the old-browser notice, the image-overwrite `confirm`.
+
+---
+
 # v2 Phase 1 — LIVE, 2026-10-08
 
 `feat/ui-v2` was fast-forwarded into `main` at `8d4a456` and deployed by `.github/workflows/pages.yml` (run 37799557793: `npm ci` → `npm test` → `npm run build` → Pages, success). Verified against https://sudish007.github.io/ai-batkahi/ in fresh headless Microsoft Edge contexts (Playwright for Python).
