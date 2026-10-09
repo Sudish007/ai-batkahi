@@ -259,7 +259,8 @@ let ADMIN;
 async function newCtx({ width = 1440, height = 900, theme = "light", token = null, fake = makeFakeRepo(), clock = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, colorScheme: "dark" });
   // Collected per context: CSP violations (in-page), page errors and console lines (Node side).
-  ctx.meta = { fake, errors: [], console: [], width, theme, label: `${width} ${theme}` };
+  // meta.dialog: "accept" (default) or "dismiss" for the native confirm()/beforeunload prompts.
+  ctx.meta = { fake, errors: [], console: [], width, theme, label: `${width} ${theme}`, dialog: "accept" };
   await ctx.addInitScript(
     ({ theme, token, key }) => {
       window.__csp = [];
@@ -276,7 +277,7 @@ async function newCtx({ width = 1440, height = 900, theme = "light", token = nul
   ctx.on("page", (page) => {
     page.on("pageerror", (err) => ctx.meta.errors.push(String((err && err.message) || err)));
     page.on("console", (msg) => ctx.meta.console.push(`${msg.type()}: ${msg.text()}`));
-    page.on("dialog", (d) => d.accept()); // confirm()/beforeunload: always proceed
+    page.on("dialog", (d) => (ctx.meta.dialog === "dismiss" ? d.dismiss() : d.accept()));
   });
   const page = await ctx.newPage();
   if (clock) await page.clock.install();
@@ -813,6 +814,49 @@ async function dialogs() {
   const u3 = { open: await b.page.evaluate(() => document.getElementById("confirm-delete").open), deletes: b.fake.deletes.length };
   record("U delete via Enter", "admin", 1440, "light", u1.open && u1.deletes === 0 && !u2.open && u2.returnValue === "ok" && u2.deletes.length === 1 && u2.deletes[0].path === targetPath && u2.deletes[0].sha === "(original sha)" && u2.deletes[0].status === 200 && u2.fileGone && u2.rows === REAL_POSTS.length - 1 && !u3.open && u3.deletes === 1, { wrongSlugEnter: u1, rightSlugEnter: u2, cancel: u3 });
   await closeCtx(b.ctx, b.page, "delete-dialog");
+
+  // V: dismissing the unsaved-changes confirm ("stay") keeps every field, the
+  // tags and the editor hash, on #/new and on #/edit/<file>.
+  const snapshot = (page) => page.evaluate(() => ({
+    hash: location.hash,
+    editor: !document.getElementById("editor").hidden,
+    fields: Object.fromEntries(["f-title", "f-title-en", "f-slug", "f-date", "f-summary", "f-summary-en", "f-instagram", "f-category", "f-body"].map((id) => [id, document.getElementById(id).value])),
+    tags: [...document.querySelectorAll("#tag-list li span")].map((s) => s.textContent),
+    draft: document.getElementById("f-draft").checked,
+  }));
+  const c = await newCtx({ width: 1440, token: TOKEN_OK });
+  await open(c.page, "#/new");
+  await waitEditor(c.page);
+  await fillPost(c.page, NEW_POST);
+  const vNewBefore = await snapshot(c.page);
+  c.ctx.meta.dialog = "dismiss";
+  await c.page.click("#back");
+  await c.page.waitForTimeout(600);
+  const vNewAfter = await snapshot(c.page);
+  const vNewSaved = await c.page.evaluate(() => { const raw = localStorage.getItem("batkahi.admin.draft.new"); return raw ? JSON.parse(raw).data.title : null; });
+  // Accepting afterwards must still leave (the guard did not get stuck).
+  c.ctx.meta.dialog = "accept";
+  await c.page.click("#back");
+  await waitDashboard(c.page);
+  const vNewLeft = await c.page.evaluate(() => ({ hash: location.hash, dashboard: !document.getElementById("dashboard").hidden }));
+  const newKept = JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter) && vNewBefore.hash === "#/new" && vNewAfter.editor && vNewBefore.fields["f-title"] === NEW_POST.title && vNewBefore.tags.length === NEW_POST.tags.length;
+  // #/edit/<file>: change a field, then stay.
+  const editedPost = REAL_POSTS[1];
+  await go(c.page, `#/edit/${editedPost.name}`);
+  await c.page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await c.page.waitForTimeout(300);
+  const editedSummary = editedPost.data.summary + " (रुकल)";
+  await c.page.fill("#f-summary", editedSummary);
+  await addTags(c.page, ["नया-टैग"]);
+  const vEditBefore = await snapshot(c.page);
+  c.ctx.meta.dialog = "dismiss";
+  await c.page.click("#back");
+  await c.page.waitForTimeout(600);
+  const vEditAfter = await snapshot(c.page);
+  c.ctx.meta.dialog = "accept";
+  const editKept = JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter) && vEditBefore.hash === `#/edit/${editedPost.name}` && vEditAfter.editor && vEditAfter.fields["f-summary"] === editedSummary && vEditAfter.tags.includes("नया-टैग");
+  record("V unsaved guard: stay keeps edits", "editor", 1440, "light", newKept && vNewSaved === NEW_POST.title && vNewLeft.hash === "#/" && vNewLeft.dashboard && editKept, { new: { before: { ...vNewBefore, fields: Object.keys(vNewBefore.fields).length + " fields" }, unchanged: JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter), autosavedTitle: vNewSaved, thenLeft: vNewLeft }, edit: { hash: vEditAfter.hash, unchanged: JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter), summary: vEditAfter.fields["f-summary"] === editedSummary, tags: vEditAfter.tags } });
+  await closeCtx(c.ctx, c.page, "unsaved-guard");
 }
 
 async function publishFlows() {

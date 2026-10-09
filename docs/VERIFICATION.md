@@ -9,8 +9,8 @@ Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gz
 | Gate | Result |
 | --- | --- |
 | `npm test` | 165 tests, 165 pass, 0 fail (~1.5 s; builds first) |
-| `npm run dryrun` | exit 0 — before `6 posts, 3 active categories` → during `7 posts, 4 active categories` (`skip draft: 98-dry-run-draft.md`, `Building 7 posts, 4 active categories`, `posts/dry-run-khabar/index.html` 12 249 B, `width="1" height="1"` on the fixture img, 166 tests pass) → after `6 posts, 3 active categories`; `git status --porcelain content/` empty, `content/images/dry-run/` gone |
-| `npm run audit:admin` | 172 rows, 0 failed (153 before the review fixes; added: restore on `#/edit`, link dialog, delete via Enter, field-border contrast × 10) |
+| `npm run dryrun` | exit 0 — before `6 posts, 3 active categories` → during `7 posts, 4 active categories` (`skip draft: 98-dry-run-draft.md`, `Building 7 posts, 4 active categories`, `posts/dry-run-khabar/index.html` 12 249 B, `width="1" height="1"` on the fixture img, 166 tests pass) → after `6 posts, 3 active categories`, then a final `npm run build` so `dist/` holds the six real posts again; `git status --porcelain content/` empty, `content/images/dry-run/` and `dist/posts/dry-run-khabar/` gone |
+| `npm run audit:admin` | 176 rows, 0 failed in 4 of 4 consecutive full runs, plus 4 of 4 `publishFlows`-only runs (9 rows each). Review pass 2 had found this gate red about one run in four: the `#publish-dialog` `close` handler evicted the just-published post from the cache while `loadDashboard` was rendering it; the dashboard now renders from the entries its own fetch pool returned and the handler only stops the poll. Rows added since pass 1: restore on `#/edit`, link dialog, delete via Enter, field-border contrast × 10, unsaved-changes guard "stay" (V) |
 | `npm run audit` | 759 rows, 0 failed; PAGES now has 7 entries incl. `admin/` (101 admin rows across A overflow, B fontFloor, C typeScale, D controls, E contrast, pageErrors, G lightDefault, S screenshot) |
 | `git grep -n "ghp_\|github_pat_"` | only the four fake tokens (`scripts/audit-admin.mjs`, `tests/admin-lib.test.js`, `README.md`) |
 
@@ -18,9 +18,9 @@ Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gz
 
 | Artifact | Bytes |
 | --- | --- |
-| `admin/admin.js` | 35 340 |
-| `admin/lib/*.js` (13 files: 5 verbatim copies of `src/lib`, 8 admin libs) | 26 293 |
-| admin JS budget line (`admin.js + lib`) | 61 633 of 81 920 |
+| `admin/admin.js` | 35 830 |
+| `admin/lib/*.js` (13 files: 5 verbatim copies of `src/lib`, 8 admin libs) | 26 619 |
+| admin JS budget line (`admin.js + lib`) | 62 449 of 81 920 |
 | `admin/admin.css` | 7 465 |
 | `admin/vendor/marked.esm.js` (reported separately, excluded from the budget) | 46 345 |
 | `admin/index.html` | 22 631 |
@@ -32,9 +32,9 @@ CSP as shipped in `dist/admin/index.html`:
 default-src 'self'; connect-src 'self' https://api.github.com https://sudish007.github.io; img-src 'self' data: blob: https://raw.githubusercontent.com; style-src 'self'; script-src 'self' 'sha256-ZWI26U6xbtgBkmqXWvoCBFJ5F7/NirY+iNzgFas29nc='; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'
 ```
 
-(`sha256-…` is the hash of the layout's inline pre-paint script, recomputed by `tests/dist-admin.test.js`, which also asserts that the meta precedes the script it hashes — a meta CSP governs only what is parsed after it.) Zero `securitypolicyviolation` events and zero page errors were observed in all 26 audit contexts.
+(`sha256-…` is the hash of the layout's inline pre-paint script, recomputed by `tests/dist-admin.test.js`, which also asserts that the meta precedes the script it hashes — a meta CSP governs only what is parsed after it.) Zero `securitypolicyviolation` events and zero page errors were observed in all 27 audit contexts.
 
-## `npm run audit:admin` — checks A–S
+## `npm run audit:admin` — checks A–V
 
 GitHub mock: `page.route("https://api.github.com/**")` (CORS preflights answered with 204 + `Access-Control-Allow-*`, `Access-Control-Expose-Headers: x-ratelimit-remaining, x-ratelimit-reset`) over an in-memory repo seeded from the six real `content/posts/*.md` (sha1 shas, 60-column base64 like GitHub); `raw.githubusercontent.com` returns a 1×1 PNG. Tokens: `ghp_FAKE_OK` (push), `ghp_FAKE_READONLY` (push false), `ghp_FAKE_RATE` (403 + `x-ratelimit-remaining: 0`), anything else 401.
 
@@ -54,6 +54,7 @@ GitHub mock: `page.route("https://api.github.com/**")` (CORS preflights answered
 | L autosave | `सहेजल · HH:MM` within 3.5 s under `batkahi.admin.draft.new`; reload → `#/new` shows the restore banner with empty fields; `वापस लाईं` restores body (697 chars), title, title_en, slug. For an existing post (`#/edit/02-llm-kaise-bolela.md`): no banner on a clean open; an edited body is saved under `batkahi.admin.draft.02-llm-kaise-bolela.md`; after `page.reload()` the form holds the remote body and the banner is visible; `वापस लाईं` restores the edit; the dashboard → edit path shows it too; `हटाईं` removes the key (the banner no longer depends on listing fetch time — it shows whenever the local copy differs from the loaded file) |
 | T link dialog | `/posts/llm-kaise-bolela/` + `x` → `[x](/posts/llm-kaise-bolela/)` inserted at the caret (form `novalidate`, so root-relative links pass); `रद्द` closes the dialog with an invalid value and leaves the body unchanged |
 | U delete via Enter | Enter in `#confirm-slug` with `wrong` → dialog stays open, 0 DELETE; with the right slug → DELETE with the original sha (200), `returnValue="ok"`, dialog closed, 5 rows; `रद्द` (`type="button"`) closes without deleting |
+| V unsaved guard | `#/new` filled (title, title_en, category, 2 tags, summaries, body) → `वापस` → native `confirm` dismissed → hash still `#/new`, editor visible, all 9 fields, the tags and the draft box byte-equal to before, autosave written; accepting the next `वापस` reaches `#/` with the dashboard. `#/edit/02-llm-kaise-bolela.md` with an edited summary and an added tag → dismissed → hash and every field unchanged (before the fix, the guard's `location.hash = …` fired `hashchange` → `openEditor()` → `fillForm()` and wiped the form; it now uses `history.replaceState`) |
 | M image | 2000×1200 PNG (Chromium screenshot) → dialog `1600×960, 3 KB` → alt `परीक्षण` → PUT `content/images/dry-run-post/20261009-photo-test.webp` (3 274 B, `imageSize()` 1600×960) with `image: 20261009-photo-test.webp for dry-run-post [skip ci]`, no run created; `![परीक्षण](/images/dry-run-post/20261009-photo-test.webp)` inserted; preview `<img src>` is `blob:`. Chromium produced **WebP** |
 | N publish | PUT `content/posts/07-dry-run-post.md`, `post: Dry run post`, no sha; decoded file parses to the typed title/title_en/date/category `khabar`/tags/summary/summary_en, no `draft`, body unchanged; step 2 `कतार में` → `चलत बा` → `सफल`, step 3 live `https://sudish007.github.io/ai-batkahi/posts/dry-run-post/`, `#pub-result` `लाइव बा`, copy button, slug locked, autosave key removed. The 10 s polling was fast-forwarded with `page.clock.install()` + `page.clock.runFor(10500)` (available in Playwright 1.64); no real-time waiting |
 | O failure | `failNext` → `08-dry-run-post-two.md`; step 2 `failed` / `असफल (failure)`, step 3 pending, `CI असफल — run देखीं, ठीक क के फेर प्रकाशित करीं`, run link = the run's `html_url`, no live link |
@@ -61,9 +62,11 @@ GitHub mock: `page.route("https://api.github.com/**")` (CORS preflights answered
 | Q update | `#/edit/02-llm-kaise-bolela.md`: slug `readOnly`, heading `संपादन: ChatGPT जइसन AI कइसे बोलेला?`, all fields = the real file; summary changed → PUT with the previous sha (200), `post: How does an AI like ChatGPT talk?`, decoded front matter equal except summary, body byte-equal after trim |
 | R stale sha | fake file mutated → PUT 409 → native `confirm` accepted → GET fresh sha → second PUT 200 with the fresh sha; step 1 done |
 | S screenshots | 12 viewport-only PNGs (`admin-{lock,dashboard,editor}-{390x844,1440x900}-{light,dark}.png`), header sizes = viewport, ≤ 4000 px |
-| per-context | 24 contexts × (csp, pageErrors, tokenHygiene console/url) = 72 rows, all ok |
+| per-context | 27 contexts × (csp, pageErrors, tokenHygiene console/url) = 81 rows, all ok |
 
 Admin defects fixed by this audit (in `public/admin/admin.css`): draft/remember checkbox labels are now 44 px tap targets; the inline links in the lock-screen help/security lists get `padding-block: 0.6em` so their hit boxes are ≥ 40 px at every width (they measured 22–29 px in the public matrix).
+
+Review pass 2 fixes (verified by the rows above and by `npm test`): the dashboard cache-eviction race (gate flake, see Gates); the unsaved-changes guard (row V); `tests/dist-pages.test.js` no longer asserts a related-list size for the shipped six posts, and its ToC expectation counts `<h2>` in the rendered body so setext headings follow the renderer; `validate.js` rejects setext underlines (`शीर्षक खातिर ## लिखीं (=== / --- ना)`, unit-tested for `===` and `---`); a draft without `title_en` is committed as `draft: <slug> [skip ci]`.
 
 Not exercised: the real GitHub API (no token), Firefox/Safari, the 10-minute poll cap, `QuotaExceededError`, the old-browser notice, the image-overwrite `confirm`.
 

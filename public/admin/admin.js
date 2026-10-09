@@ -37,7 +37,6 @@ const state = {
   previewTimer: 0,
   slugTouched: false,
   tags: [],
-  publishedFile: null,
 };
 
 /* ---------- helpers ---------- */
@@ -174,6 +173,7 @@ async function fetchPost(name) {
 function postRow(name, entry) {
   const main = el("div", { class: "row-main" });
   const actions = el("div", { class: "actions" });
+  if (!entry) entry = { error: new Error("फाइल ना मिलल"), slug: postSlugFromName(name) };
   if (entry.error) {
     main.append(el("strong", { text: name }), el("p", { class: "meta", text: `पढ़ ना पाइल — ${userMessage(entry.error)}` }));
   } else {
@@ -216,12 +216,15 @@ async function loadDashboard() {
   for (let i = 0; i < 3; i++) list.append(el("li"));
   try {
     await loadFiles();
-    await pool(state.files, 6, fetchPost);
+    // Render from what THIS load fetched, not from the cache: another task may
+    // evict or replace cache entries while the pool is still running.
+    const entries = new Map();
+    await pool(state.files, 6, async (n) => entries.set(n, await fetchPost(n)));
     list.classList.remove("skeleton");
     clear(list);
     let drafts = 0;
     for (const name of [...state.files].reverse()) {
-      const entry = state.posts.get(name);
+      const entry = entries.get(name);
       if (entry && !entry.error && (entry.data.draft === "true" || entry.data.draft === true)) drafts++;
       list.append(postRow(name, entry));
     }
@@ -448,7 +451,6 @@ async function openEditor(file) {
   show($("restore"), false);
   state.slugTouched = false;
   state.dirty = false;
-  state.publishedFile = null;
   const slugInput = $("f-slug");
   const slugHint = $("f-slug-hint");
   if (!state.files.length) {
@@ -675,7 +677,9 @@ async function publish({ draft }) {
     setStep(0, "failed", err.message === "mixed quotes" ? "शीर्षक में एके तरह के उद्धरण राखीं" : userMessage(err));
     return;
   }
-  const message = draft ? `draft: ${data.title_en.trim()} [skip ci]` : `post: ${data.title_en.trim()}`;
+  // Drafts need only title and slug, so the label falls back to the slug.
+  const label = data.title_en.trim() || slug;
+  const message = draft ? `draft: ${label} [skip ci]` : `post: ${label}`;
   setStep(0, "running", "कमिट करत बानी");
   let result;
   try {
@@ -698,7 +702,6 @@ async function publish({ draft }) {
   if (!state.files.includes(file)) state.files.push(file);
   state.editing = { file, sha: contentSha, slug, locked: true };
   state.posts.set(file, { data: { ...data, draft: draft ? "true" : "" }, body, sha: contentSha, slug });
-  state.publishedFile = file;
   $("editor-heading").textContent = `संपादन: ${data.title.trim()}`;
   $("f-slug").readOnly = true;
   $("f-slug-hint").textContent = "प्रकाशित पोस्ट के slug ना बदले";
@@ -887,13 +890,8 @@ function bindEditor() {
   });
   $("pub-close").addEventListener("click", () => $("publish-dialog").close());
   // Escape closes the dialog too, so the poll cleanup lives on the close event.
-  $("publish-dialog").addEventListener("close", () => {
-    clearInterval(state.pollTimer);
-    if (state.publishedFile) {
-      state.publishedFile = null;
-      state.posts.delete(state.editing.file);
-    }
-  });
+  // publish() already stored the fresh data/body/sha in state.posts; nothing to evict.
+  $("publish-dialog").addEventListener("close", () => clearInterval(state.pollTimer));
   new MutationObserver(() => {
     if (!$("editor").hidden) schedulePreview();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -920,8 +918,11 @@ async function route() {
   const leavingEditor = currentHash.startsWith("#/new") || currentHash.startsWith("#/edit/");
   const entering = hash.startsWith("#/new") || hash.startsWith("#/edit/");
   if (leavingEditor && !entering && state.dirty) {
+    saveLocal();
     if (!confirm("असहेजल बदलाव बा। छोड़ दीं?")) {
-      location.hash = currentHash;
+      // Put the editor's hash back WITHOUT a hashchange: assigning location.hash
+      // would re-enter openEditor() -> fillForm() and wipe the very edits kept.
+      history.replaceState(null, "", currentHash);
       return;
     }
     state.dirty = false;
