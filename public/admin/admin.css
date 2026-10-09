@@ -1,0 +1,431 @@
+/* AI Batkahi admin (dist/admin/). Tokens and reusable classes come from
+   styles.css; this file adds only form, dashboard, editor and dialog layout.
+   Flat surfaces, no motion declarations at all, every control >= 44px. */
+
+.admin {
+  padding-block: 1rem 3rem;
+}
+
+.admin section {
+  margin-block: 2rem;
+  max-width: var(--measure);
+}
+
+.admin #editor,
+.admin #dashboard {
+  max-width: none;
+}
+
+.admin .page-header {
+  max-width: var(--measure);
+}
+
+.admin label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.admin .check label {
+  margin: 0;
+  font-weight: 400;
+}
+
+.admin input:not([type="checkbox"]),
+.admin select,
+.admin textarea {
+  font: inherit;
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  width: 100%;
+  min-height: var(--control);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* The input rule above outranks .visually-hidden; restore the 1px box for the
+   hidden file picker so it never widens the page. */
+.admin input.visually-hidden {
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  left: 0;
+}
+
+.admin input:read-only {
+  color: var(--ink-muted);
+  background: var(--bg-alt);
+}
+
+.admin textarea {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  min-height: 24rem;
+  resize: vertical;
+}
+
+.admin .fields textarea {
+  min-height: 6rem;
+}
+
+.admin button,
+.admin .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control);
+  padding: 0 1rem;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.admin button[type="submit"],
+.admin #publish {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.admin button:focus-visible,
+.admin .btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.admin .danger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: var(--control);
+}
+
+.check input {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+}
+
+.hint {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  margin: 0.35rem 0 0;
+}
+
+.hint:empty {
+  display: none;
+}
+
+.form-error,
+.field-error,
+.errors {
+  color: var(--accent);
+  font-size: var(--fs-sm);
+  margin: 0.5rem 0 0;
+}
+
+.errors {
+  border: 1px solid var(--accent);
+  padding: 0.75rem 1rem;
+  list-style: disc inside;
+}
+
+.errors:empty {
+  display: none;
+}
+
+.errors a {
+  color: inherit;
+}
+
+#signin {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+#signin button {
+  justify-self: start;
+}
+
+.help ol,
+.security ul,
+.limits ul {
+  padding-left: 1.25rem;
+  line-height: var(--lh-body);
+}
+
+.help li,
+.security li,
+.limits li {
+  margin-bottom: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.dash-head {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.dash-head h2,
+.dash-head p {
+  margin: 0;
+}
+
+#dash-count,
+#deploy-status {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+
+.post-rows {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.post-rows li {
+  border: 1px solid var(--rule);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.post-rows .row-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.post-rows .meta {
+  margin: 0.25rem 0 0;
+}
+
+.post-rows .actions {
+  margin-top: 0;
+}
+
+@media (min-width: 48em) {
+  .post-rows li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.chip,
+.post-rows .state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+}
+
+.chips #tags-label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+#tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+
+#tag-list:empty {
+  margin: 0;
+}
+
+#tag-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+}
+
+#tag-list button {
+  min-height: var(--control);
+  min-width: var(--control);
+  padding: 0 0.75rem;
+  font-size: var(--fs-xs);
+  border: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.toolbar button {
+  font-size: var(--fs-xs);
+  padding: 0 0.75rem;
+}
+
+.editor-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.body-pane label {
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 64em) {
+  .editor-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .fields {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 1rem;
+  }
+
+  .preview-pane {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+
+  #preview-toggle {
+    display: none;
+  }
+
+  /* styles.css has [hidden] { display: none !important }; on wide screens the
+     pane is always shown, so the toggle's hidden state is overridden here. */
+  #preview-wrap[hidden] {
+    display: block !important;
+  }
+}
+
+#preview {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+}
+
+.skeleton li {
+  min-height: 3.5rem;
+  border-color: var(--rule);
+}
+
+.restore {
+  border: 1px solid var(--rule);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+
+.admin dialog,
+dialog.admin-dialog {
+  width: min(40rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--rule);
+  background: var(--bg-alt);
+  color: var(--ink);
+}
+
+dialog.admin-dialog h2 {
+  margin-top: 0;
+}
+
+dialog.admin-dialog::backdrop {
+  background: rgba(31, 27, 23, 0.45);
+  background: var(--scrim);
+}
+
+:root[data-theme="dark"] dialog.admin-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.steps {
+  padding-left: 1.25rem;
+  color: var(--ink-muted);
+}
+
+.steps li {
+  padding: 0.25rem 0;
+}
+
+.steps li[data-state="running"] .step-status::before {
+  content: "…";
+}
+
+.steps li[data-state="done"] {
+  color: var(--ink);
+}
+
+.steps li[data-state="failed"] {
+  color: var(--accent);
+}
+
+.status-line {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+#activity-list {
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  list-style: none;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+#activity-list li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+#activity-list time {
+  color: var(--ink-muted);
+  margin-right: 0.5rem;
+}
