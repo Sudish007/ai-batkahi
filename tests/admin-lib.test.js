@@ -15,7 +15,7 @@ import { slugify } from "../src/lib/slugify.js";
 import { escapeHtml } from "../src/lib/xml.js";
 import { parse } from "../src/lib/frontmatter.js";
 
-const TOKEN = "ghp_FAKE_TEST_TOKEN_0000";
+const TOKEN = "ghp_FAKE_OK"; // one of the four documented fake tokens (see README "Admin")
 
 /* ---------- base64 ---------- */
 test("base64: UTF-8 round-trip, large input, GitHub-style wrapped input", () => {

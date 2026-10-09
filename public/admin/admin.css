@@ -27,7 +27,11 @@
   margin-bottom: 0.35rem;
 }
 
+/* The label is the checkbox's tap target: make it the full control height. */
 .admin .check label {
+  display: flex;
+  align-items: center;
+  min-height: var(--control);
   margin: 0;
   font-weight: 400;
 }
@@ -185,6 +189,13 @@
 .limits li {
   margin-bottom: 0.5rem;
   overflow-wrap: anywhere;
+}
+
+/* Inline links in the lock-screen help get a >= 44px tap target; vertical
+   padding on an inline box grows its hit area without moving the lines. */
+.help a,
+.security a {
+  padding-block: 0.6em;
 }
 
 .dash-head {

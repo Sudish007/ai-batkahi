@@ -13,6 +13,7 @@
     "serve": "node scripts/serve.mjs",
     "dryrun": "node scripts/dry-run-publish.mjs",
     "audit": "node scripts/audit.mjs",
+    "audit:admin": "node scripts/audit-admin.mjs",
     "check-links": "node scripts/check-external-links.mjs"
   },
   "dependencies": {

@@ -30,6 +30,7 @@ const PAGES = [
   { key: "post", path: "posts/llm-kaise-bolela/" },
   { key: "about", path: "about/" },
   { key: "404", path: "404.html" },
+  { key: "admin", path: "admin/" }, // lock screen only: no token, so no GitHub call
 ];
 const byKey = (k) => PAGES.find((p) => p.key === k);
 const WIDTHS = [320, 360, 390, 820, 1024, 1440, 1920, 2560];
@@ -250,7 +251,7 @@ function matrixEval(grainAlpha) {
 
 /* ---------- checks ---------- */
 async function matrix() {
-  console.log("A-E matrix: 6 pages x 8 widths x 2 themes");
+  console.log(`A-E matrix: ${PAGES.length} pages x 8 widths x 2 themes`);
   for (const theme of THEMES) {
     for (const width of WIDTHS) {
       const ctx = await newCtx({ width, theme });
@@ -733,7 +734,7 @@ async function print() {
 }
 
 async function screenshots() {
-  console.log("S screenshots: 6 pages x 6 viewports x 2 themes");
+  console.log(`S screenshots: ${PAGES.length} pages x 6 viewports x 2 themes`);
   for (const theme of THEMES) {
     for (const [width, height] of SHOT_VIEWPORTS) {
       const ctx = await newCtx({ width, height, theme });
