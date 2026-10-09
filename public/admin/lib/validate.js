@@ -5,6 +5,7 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const INSTAGRAM = /^https:\/\/www\.instagram\.com\//;
 const IN_ENGLISH = /^##\s+In English\s*$/im;
+const SETEXT = /^(?!\s*$).+\n(=+|-+)[ \t]*$/m;
 
 function realDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -56,6 +57,9 @@ export function validatePost({ data, body, existingSlugs = [], currentSlug = nul
 
   const text = String(body ?? "").replace(/\r\n/g, "\n");
   if (/^#\s/m.test(text)) push("body", "# (h1) मत लिखीं — h2 से शुरू करीं");
+  // A setext underline (=== / ---) under a text line renders an h1/h2 that the
+  // `##` rules above cannot see; the build's one-h1 and ToC tests would then fail.
+  if (SETEXT.test(text)) push("body", "शीर्षक खातिर ## लिखीं (=== / --- ना)");
   const firstH2 = text.search(/^##\s/m);
   const firstH3 = text.search(/^###\s/m);
   if (firstH3 !== -1 && (firstH2 === -1 || firstH3 < firstH2)) push("body", "### से पहिले ## चाहीं");

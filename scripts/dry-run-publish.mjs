@@ -124,6 +124,9 @@ try {
   rmSync(IMAGE_DIR, { recursive: true, force: true });
   const after = counts();
   console.log(`dry-run after: ${after.posts} posts, ${after.categories} active categories`);
+  // Rebuild so dist/ does not keep the temporary post and image (the audits do not build first).
+  const rebuilt = run(["src/build.js"]);
+  if (code === 0 && rebuilt !== 0) code = rebuilt;
   console.log(`dry-run exit code: ${code}`);
 }
 process.exit(code);

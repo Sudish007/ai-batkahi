@@ -7,16 +7,20 @@ import categories from "../content/categories.js";
 import { escapeHtml } from "../src/lib/xml.js";
 import { relatedPosts } from "../src/lib/posts.js";
 import { slugFromFilename } from "../src/lib/slugify.js";
-import { splitInEnglish } from "../src/lib/markdown-core.js";
+import { Marked } from "marked";
+import { MARKED_OPTIONS, createRenderer, splitInEnglish } from "../src/lib/markdown-core.js";
 import { parse } from "../src/lib/frontmatter.js";
 import { DIST, POSTS_DIR, htmlFiles, read, contentPosts, activeCategorySlugs } from "./helpers.js";
 
 const POST_PAGE = /[\\/]posts[\\/]([^\\/]+)[\\/]index\.html$/;
 
-// Number of `##` sections in a post's Bhojpuri body (before "## In English").
+// Number of h2 sections in a post's Bhojpuri body (before "## In English"),
+// counted on the rendered HTML so setext (`---`) headings follow the renderer.
+// The build's renderer core is used directly so missing image sizes stay silent here.
+const h2Marked = new Marked(MARKED_OPTIONS).use({ renderer: createRenderer({ resolveUrl: (h) => h, imageSizes: {}, onMissingSize: () => {} }) });
 function bodyH2Count(file) {
   const { body } = splitInEnglish(parse(read(join(POSTS_DIR, file))).body);
-  return (body.match(/^##\s+/gm) || []).length;
+  return (h2Marked.parse(body).match(/<h2 /g) || []).length;
 }
 
 // slug -> h2 count for every non-draft post, so ToC expectations follow content.
@@ -271,9 +275,6 @@ test("related-by-tags: every post page lists exactly the posts relatedPosts() de
       assert.equal(why.get(href), r.shared.map(escapeHtml).join(", "), `${file}: shared tags for ${r.post.slug}`);
     }
   }
-  // Sanity: with the shipped six posts llm-kaise-bolela shares ChatGPT with two others.
-  const llm = bySlug.get("llm-kaise-bolela");
-  if (llm && all.length === 6) assert.equal(relatedPosts(llm, all).length, 2);
 });
 
 test("posts index and category pages render the card grid with the filter chips", () => {

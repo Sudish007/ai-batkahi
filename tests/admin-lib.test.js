@@ -257,6 +257,8 @@ test("validate: every rule fails with its exact message", () => {
 test("validate: body rules", () => {
   const bodyCases = [
     [`# शीर्षक\n${BODY}`, "# (h1) मत लिखीं — h2 से शुरू करीं"],
+    [`शीर्षक\n===\n\n${BODY}`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
+    [`${BODY}\n\nपैरा\n---\n`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
     [`### छोट\n${BODY}`, "### से पहिले ## चाहीं"],
     [`## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
     [`## In English\n${EN}\n## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
