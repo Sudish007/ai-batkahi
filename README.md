@@ -92,7 +92,7 @@ Shared-origin caveat: `sudish007.github.io` is one origin for all of the owner's
 - Images: pick, drop or paste a file → resized in the browser to ≤ 1600 px on the long side → WebP (JPEG where the browser cannot encode WebP) → committed to `content/images/<slug>/<yyyymmdd>-<name>.webp` → `![alt](/images/<slug>/<name>)` inserted at the caret. Alt text is required unless the image is marked decorative.
 - Publish / update / draft / delete go through the GitHub Contents API (`PUT`/`DELETE /repos/…/contents/<path>` with the file's `sha` for updates and deletes; a `409` because the file changed elsewhere offers reload or overwrite). After a publish the page polls the latest Actions run for the commit every 10 s and shows queued → running → success with the live URL, or failure with a link to the run.
 
-Commit messages: `post: <title_en>` (publish and update), `draft: <title_en> [skip ci]`, `image: <file> for <slug> [skip ci]`, `post: delete <title_en>`. Drafts and images do not trigger a deploy; publishing, updating and deleting do.
+Commit messages: `post: <title_en>` (publish and update), `draft: <title_en> [skip ci]`, `image: <file> for <slug> [skip ci]`, `post: delete <title_en>`. Drafts and images do not trigger a deploy; publishing, updating and deleting do. The "ड्राफ्ट (साइट पर ना देखाई)" checkbox decides the committed state: while it is ticked the primary button reads "ड्राफ्ट सहेजीं" and commits `draft: true`; the separate "ड्राफ्ट सहेजीं" button (shown when the box is off) saves a draft and ticks the box; unticking the box on an opened draft and pressing "प्रकाशित करीं" publishes it.
 
 ### Limitations
 

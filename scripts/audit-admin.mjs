@@ -940,7 +940,19 @@ async function publishFlows() {
   record("O publish failure", "publish", 1440, "light", oCommit.path === "content/posts/08-dry-run-post-two.md" && o.step2.state === "failed" && o.step2.status === "असफल (failure)" && o.step3 === "pending" && o.result === "CI असफल — run देखीं, ठीक क के फेर प्रकाशित करीं" && o.live && !o.run.hidden && o.run.href === oRun.html_url && oRun.conclusion === "failure", { path: oCommit.path, ...o, runUrl: oRun.html_url });
   await page.click("#pub-close");
 
-  // P: draft save -> draft: true first, [skip ci], no run.
+  // P: the draft checkbox decides what the PRIMARY button commits: ticked +
+  // "प्रकाशित करीं" (which then reads "ड्राफ्ट सहेजीं") -> draft: true first,
+  // [skip ci], no run; the separate draft button is hidden meanwhile.
+  const draftUi = () => page.evaluate(() => ({
+    checked: document.getElementById("f-draft").checked,
+    primary: document.getElementById("publish").textContent,
+    draftBtnHidden: document.getElementById("save-draft").hidden,
+  }));
+  const dialogState = () => page.evaluate(() => ({
+    steps: [...document.querySelectorAll("#pub-steps li")].map((li) => ({ state: li.dataset.state, status: li.querySelector(".step-status").textContent })),
+    result: document.getElementById("pub-result").textContent,
+    pubFile: document.getElementById("pub-file").textContent,
+  }));
   await go(page, "#/");
   await waitDashboard(page);
   await go(page, "#/new");
@@ -948,16 +960,56 @@ async function publishFlows() {
   const runsBefore = fake.runs.length;
   await page.fill("#f-title", "ड्राई-रन ड्राफ्ट");
   await page.fill("#f-title-en", "Dry run draft");
+  const pBefore = await draftUi();
   await page.check("#f-draft");
-  await clickPublish(page, fake, "#save-draft");
+  const pTicked = await draftUi();
+  await clickPublish(page, fake, "#publish");
   await page.waitForTimeout(300);
   const pCommit = fake.commits[fake.commits.length - 1];
-  const p = await page.evaluate(() => ({
-    steps: [...document.querySelectorAll("#pub-steps li")].map((li) => ({ state: li.dataset.state, status: li.querySelector(".step-status").textContent })),
-    result: document.getElementById("pub-result").textContent,
-    pubFile: document.getElementById("pub-file").textContent,
-  }));
-  record("P draft", "publish", 1440, "light", pCommit.path === "content/posts/09-dry-run-draft.md" && pCommit.message === "draft: Dry run draft [skip ci]" && pCommit.decoded.startsWith("---\ndraft: true\n") && fake.runs.length === runsBefore && p.steps[1].status === "deploy नइखे (ड्राफ्ट)" && p.steps[2].status === "deploy नइखे (ड्राफ्ट)" && p.result === "ड्राफ्ट सहेजल गइल (साइट पर ना देखाई)", { path: pCommit.path, message: pCommit.message, head: pCommit.decoded.slice(0, 40), runsCreated: fake.runs.length - runsBefore, ...p });
+  const p = await dialogState();
+  const pAfter = await draftUi();
+  const pUiOk = !pBefore.checked && pBefore.primary === "प्रकाशित करीं" && !pBefore.draftBtnHidden && pTicked.checked && pTicked.primary === "ड्राफ्ट सहेजीं" && pTicked.draftBtnHidden && pAfter.checked && pAfter.primary === "ड्राफ्ट सहेजीं";
+  record("P draft: box ticked + primary button", "publish", 1440, "light", pUiOk && pCommit.path === "content/posts/09-dry-run-draft.md" && pCommit.message === "draft: Dry run draft [skip ci]" && pCommit.decoded.startsWith("---\ndraft: true\n") && fake.runs.length === runsBefore && p.steps[1].status === "deploy नइखे (ड्राफ्ट)" && p.steps[2].status === "deploy नइखे (ड्राफ्ट)" && p.result === "ड्राफ्ट सहेजल गइल (साइट पर ना देखाई)", { path: pCommit.path, message: pCommit.message, head: pCommit.decoded.slice(0, 40), runsCreated: fake.runs.length - runsBefore, ui: { before: pBefore, ticked: pTicked, after: pAfter }, ...p });
+  await page.click("#pub-close");
+
+  // P2: box unticked + "ड्राफ्ट सहेजीं" button -> draft: true too, and the form
+  // then mirrors the committed file (box ticked, primary reads "ड्राफ्ट सहेजीं").
+  await go(page, "#/");
+  await waitDashboard(page);
+  await go(page, "#/new");
+  await waitEditor(page);
+  await page.fill("#f-title", "ड्राई-रन ड्राफ्ट दू");
+  await page.fill("#f-title-en", "Dry run draft two");
+  const p2Before = await draftUi();
+  await clickPublish(page, fake, "#save-draft");
+  await page.waitForTimeout(300);
+  const p2Commit = fake.commits[fake.commits.length - 1];
+  const p2 = await dialogState();
+  const p2After = await draftUi();
+  record("P2 draft: button with box unticked", "publish", 1440, "light", !p2Before.checked && p2Before.primary === "प्रकाशित करीं" && !p2Before.draftBtnHidden && p2Commit.path === "content/posts/10-dry-run-draft-two.md" && p2Commit.message === "draft: Dry run draft two [skip ci]" && p2Commit.decoded.startsWith("---\ndraft: true\n") && fake.runs.length === runsBefore && p2After.checked && p2After.primary === "ड्राफ्ट सहेजीं" && p2After.draftBtnHidden && p2.result === "ड्राफ्ट सहेजल गइल (साइट पर ना देखाई)", { path: p2Commit.path, message: p2Commit.message, head: p2Commit.decoded.slice(0, 40), runsCreated: fake.runs.length - runsBefore, ui: { before: p2Before, after: p2After }, result: p2.result });
+  await page.click("#pub-close");
+
+  // P3: publish an opened draft: the box arrives ticked from the file; unticking
+  // it + the primary button commits WITHOUT a draft key (PUT with the draft's sha,
+  // `post:` message, a run starts) and the box stays cleared afterwards.
+  const draftPath = "content/posts/09-dry-run-draft.md";
+  const draftShaBefore = fake.files.get(draftPath).sha;
+  await go(page, "#/");
+  await waitDashboard(page);
+  await go(page, "#/edit/09-dry-run-draft.md");
+  await page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value === "dry-run-draft", null, { timeout: 10000 });
+  await page.waitForTimeout(500);
+  const p3Opened = await draftUi();
+  await fillPost(page, { ...NEW_POST, title: "ड्राई-रन ड्राफ्ट", title_en: "Dry run draft" });
+  await page.uncheck("#f-draft");
+  const p3Unticked = await draftUi();
+  const p3RunsBefore = fake.runs.length;
+  await clickPublish(page, fake, "#publish");
+  const p3Put = fake.puts[fake.puts.length - 1];
+  const p3Commit = fake.commits[fake.commits.length - 1];
+  const p3Parsed = parse(p3Commit.decoded);
+  const p3After = await draftUi();
+  record("P3 publish an opened draft", "publish", 1440, "light", p3Opened.checked && p3Opened.primary === "ड्राफ्ट सहेजीं" && p3Opened.draftBtnHidden && !p3Unticked.checked && p3Unticked.primary === "प्रकाशित करीं" && !p3Unticked.draftBtnHidden && p3Put.path === draftPath && p3Put.sha === draftShaBefore && p3Put.status === 200 && p3Commit.message === "post: Dry run draft" && !("draft" in p3Parsed.data) && p3Parsed.data.title_en === "Dry run draft" && fake.runs.length === p3RunsBefore + 1 && !p3After.checked && p3After.primary === "प्रकाशित करीं" && !p3After.draftBtnHidden, { put: { path: p3Put.path, shaMatchesDraft: p3Put.sha === draftShaBefore, status: p3Put.status }, message: p3Commit.message, keys: Object.keys(p3Parsed.data), runsCreated: fake.runs.length - p3RunsBefore, ui: { opened: p3Opened, unticked: p3Unticked, after: p3After } });
   await page.click("#pub-close");
 
   // Q: update an existing post -> PUT with the previous sha, body unchanged.

@@ -266,6 +266,12 @@ test("validate: body rules", () => {
     [`## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
     [`## In English\n${EN}\n## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
     [`## पहिला\n${BHO}\n## In English\n${EN}\n## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
+    // The build's splitInEnglish is a line regex: a fenced `## In English`
+    // BEFORE the real heading is where it would cut, so this must fail.
+    [`## पहिला\n${BHO}\n\`\`\`md\n## In English\n\`\`\`\n## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
+    // Rendered as a heading but not where the build splits (quoted / indented).
+    [`## पहिला\n${BHO}\n> ## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
+    [`## पहिला\n${BHO}\n  ## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
     [`## पहिला\nथोड़ा।\n## In English\n${EN}`, "कम से कम 50 शब्द"],
     [`## पहिला\n${BHO}\n## In English\nToo short.`, "In English में कम से कम 20 शब्द"],
   ];
@@ -284,10 +290,33 @@ test("validate: body rules", () => {
     `## पहिला खंड\n\n${BHO}\n\n---\n\n## In English\n\n${EN}${EN}`,
     `## पहिला खंड\n\n${BHO}\n\n| क | ख |\n|---|---|\n| 1 | 2 |\n\n## In English\n\n${EN}${EN}`,
     `## पहिला खंड\n\n${BHO}\n\n\`\`\`md\n## उदाहरण\n\`\`\`\n\n## In English\n\n${EN}${EN}`,
+    // Every heading rule is decided by the lexer: `#`, `###`, `---`, `===` in
+    // one fence (a post explaining Markdown), and a fenced `## In English` in the
+    // English section — AFTER the real heading, where the build's line-regex
+    // split leaves it alone (before it, the build would cut there: see bodyCases).
+    `## पहिला खंड\n\n${BHO}\n\n\`\`\`md\n# h1\n### h3\n---\n===\n\`\`\`\n\n## In English\n\n${EN}${EN}\n\n\`\`\`md\n## In English\n\`\`\`\n`,
+    // ... a fenced `# शीर्षक` alone, a fenced `### छोट` above the first `##`,
+    // a fenced `## उदाहरण` after `## In English`, and indented (4-space) code.
+    `\`\`\`md\n# शीर्षक\n\`\`\`\n\n## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}`,
+    `\`\`\`md\n### छोट\n\`\`\`\n\n## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}\n\n\`\`\`md\n## उदाहरण\n\`\`\`\n`,
+    `## पहिला खंड\n\n${BHO}\n\n    # h1\n    ### h3\n    ## In English\n\n## In English\n\n${EN}${EN}`,
   ];
   for (const body of okBodies) assert.deepEqual(run({}, body), [], body.slice(0, 60));
-  assert.deepEqual(hints({ body: `## एक\n${BHO}\n## In English\n${EN}` }), ["2 से कम ## खंड: ToC ना बनी"]);
-  assert.deepEqual(hints({ body: BODY }), []);
+  // The same lines unfenced fail (one message each; `---`/`===` are covered above).
+  const unfenced = [
+    [`# h1\n\n## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}`, "# (h1) मत लिखीं — h2 से शुरू करीं"],
+    [`### h3\n\n## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}`, "### से पहिले ## चाहीं"],
+    [`## पहिला खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}\n\n## उदाहरण\n`, "In English खंड जरूरी बा (अंत में)"],
+  ];
+  for (const [body, expected] of unfenced) {
+    assert.deepEqual(run({}, body).filter((e) => e.field === "body").map((e) => e.message), [expected], body.slice(0, 30));
+  }
+  assert.deepEqual(hints({ body: `## एक\n${BHO}\n## In English\n${EN}`, lexer }), ["2 से कम ## खंड: ToC ना बनी"]);
+  assert.deepEqual(hints({ body: BODY, lexer }), []);
+  // hints() reads the lexer too: fenced `##` lines are not sections.
+  assert.deepEqual(hints({ body: `## एक\n${BHO}\n\`\`\`md\n## दू\n## तीन\n\`\`\`\n## In English\n${EN}`, lexer }), ["2 से कम ## खंड: ToC ना बनी"]);
+  assert.deepEqual(hints({ body: `## एक\n${BHO}\n> ## दू\n## In English\n${EN}`, lexer }), []);
 });
 
 /* ---------- preview ---------- */
