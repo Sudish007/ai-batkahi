@@ -6,7 +6,7 @@ import { createClient, GitHubError, scrub } from "../public/admin/lib/github.js"
 import { createStore, KEY } from "../public/admin/lib/store.js";
 import { postSlugFromName, existingSlugs, nextPostPath, imageFileName, imagePath, imageMarkdownPath, todayIST } from "../public/admin/lib/paths.js";
 import { classifyRun, describeLatest } from "../public/admin/lib/run-status.js";
-import { validatePost, hints } from "../public/admin/lib/validate.js";
+import { validatePost, hints, isValidSlug, SLUG, collectLinks, SITE_PAGES } from "../public/admin/lib/validate.js";
 import { renderPreviewHtml } from "../public/admin/lib/preview.js";
 import { MARKED_OPTIONS, createRenderer, splitInEnglish } from "../src/lib/markdown-core.js";
 import { renderMarkdown } from "../src/lib/markdown.js";
@@ -267,8 +267,9 @@ test("validate: body rules", () => {
     [`## In English\n${EN}\n## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
     [`## पहिला\n${BHO}\n## In English\n${EN}\n## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
     // The build's splitInEnglish is a line regex: a fenced `## In English`
-    // BEFORE the real heading is where it would cut, so this must fail.
-    [`## पहिला\n${BHO}\n\`\`\`md\n## In English\n\`\`\`\n## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
+    // BEFORE the real heading is where it would cut, so this must fail — with
+    // the message that names the cause (the section itself is fine).
+    [`## पहिला\n${BHO}\n\`\`\`md\n## In English\n\`\`\`\n## In English\n${EN}`, "`## In English` लाइन कोड ब्लॉक में भी मत लिखीं — build ओहिजे काटेला"],
     // Rendered as a heading but not where the build splits (quoted / indented).
     [`## पहिला\n${BHO}\n> ## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
     [`## पहिला\n${BHO}\n  ## In English\n${EN}`, "In English खंड जरूरी बा (अंत में)"],
@@ -312,6 +313,56 @@ test("validate: body rules", () => {
   for (const [body, expected] of unfenced) {
     assert.deepEqual(run({}, body).filter((e) => e.field === "body").map((e) => e.message), [expected], body.slice(0, 30));
   }
+  // Heading depth (tests/dist-lang.test.js "heading levels never skip"): the
+  // title is the h1, so ## -> #### fails in the body and right after the
+  // template's In English h2 alike; ## -> ### -> #### is fine; only the first
+  // jump is reported.
+  const bodyErrors = (body, extra) => run({}, body, extra).filter((e) => e.field === "body").map((e) => e.message);
+  assert.deepEqual(bodyErrors(`## एक\n\n${BHO}\n\n#### चार\n\n${BHO}\n\n## In English\n\n${EN}${EN}`), ["## के बाद #### नइखे चलेला — ### लगाईं"]);
+  assert.deepEqual(bodyErrors(`## एक\n\n${BHO}\n\n## In English\n\n#### Four\n\n${EN}${EN}`), ["## के बाद #### नइखे चलेला — ### लगाईं"]);
+  assert.deepEqual(bodyErrors(`## एक\n\n### दू\n\n${BHO}\n\n##### पाँच\n\n## In English\n\n${EN}${EN}`), ["### के बाद ##### नइखे चलेला — #### लगाईं"]);
+  assert.deepEqual(bodyErrors(`#### चार\n\n## एक\n\n${BHO}\n\n## In English\n\n${EN}${EN}`), ["#### से पहिले ## चाहीं"]);
+  assert.deepEqual(bodyErrors(`## एक\n\n### दू\n\n#### तीन\n\n${BHO}\n\n## In English\n\n### Three\n\n#### Four\n\n${EN}${EN}`), []);
+  // Links and images (tests/dist-links.test.js): external schemes and fragments
+  // pass; a relative target is rejected; a root-relative one must be in knownPaths
+  // (fragment/query stripped, trailing "/" optional); each href is reported once.
+  const known = ["/", "/posts/", "/about/", "/posts/llm-kaise-bolela/", "/category/samajh/", "/images/llm-kaise-bolela/a.webp"];
+  const withLinks = (md) => `## एक\n\n${BHO}\n\n${md}\n\n## In English\n\n${EN}${EN}`;
+  assert.deepEqual(bodyErrors(withLinks("[a](https://example.com/x) [b](http://example.com/y) [c](mailto:x@y.z) [d](#section-1) <https://example.com/z> ![e](data:image/png;base64,AA==)"), { knownPaths: known }), []);
+  assert.deepEqual(bodyErrors(withLinks("[a](/posts/llm-kaise-bolela/) [b](/posts/llm-kaise-bolela#x) [c](/posts/llm-kaise-bolela/?q=1) [d](/posts/llm-kaise-bolela/index.html) [e](/about/) [f](/) [g](/category/samajh/) ![h](/images/llm-kaise-bolela/a.webp)"), { knownPaths: known }), []);
+  assert.deepEqual(bodyErrors(withLinks("[x](about/)"), { knownPaths: known }), ["लिंक / से शुरू करीं (जइसे /posts/<slug>/) या पूरा https:// URL दीं: about/"]);
+  assert.deepEqual(bodyErrors(withLinks("[x](../posts/)"), { knownPaths: known }), ["लिंक / से शुरू करीं (जइसे /posts/<slug>/) या पूरा https:// URL दीं: ../posts/"]);
+  assert.deepEqual(bodyErrors(withLinks("![x](photo.png)"), { knownPaths: known }), ["छवि के रास्ता /images/ से शुरू होखे — छवि बटन से अपलोड करीं या पूरा https:// URL दीं: photo.png"]);
+  assert.deepEqual(bodyErrors(withLinks("[x](/posts/typo/) [y](/posts/typo/)"), { knownPaths: known }), ["ई लिंक साइट पर नइखे मिलत: /posts/typo/ — मौजूद बतकही के /posts/<slug>/, विषय के /category/<slug>/ या पूरा https:// URL दीं"]);
+  assert.deepEqual(bodyErrors(withLinks("[x](/category/khabar/)"), { knownPaths: known }), ["ई लिंक साइट पर नइखे मिलत: /category/khabar/ — मौजूद बतकही के /posts/<slug>/, विषय के /category/<slug>/ या पूरा https:// URL दीं"]);
+  assert.deepEqual(bodyErrors(withLinks("[x](/admin/)"), { knownPaths: known }), ["ई लिंक साइट पर नइखे मिलत: /admin/ — मौजूद बतकही के /posts/<slug>/, विषय के /category/<slug>/ या पूरा https:// URL दीं"]);
+  assert.deepEqual(bodyErrors(withLinks("![x](/images/llm-kaise-bolela/missing.webp)"), { knownPaths: known }), ["ई छवि साइट पर नइखे मिलत: /images/llm-kaise-bolela/missing.webp — छवि बटन से अपलोड करीं"]);
+  // Links inside a heading, a list item, a quote and a table cell are seen; a
+  // link in a fence or code span is not (the build renders it as text).
+  assert.equal(bodyErrors(withLinks("## शीर्षक [x](nope1/)\n\n- [y](nope2/)\n\n> [z](nope3/)\n\n| क |\n|---|\n| [t](nope4/) |"), { knownPaths: known }).length, 4);
+  assert.deepEqual(bodyErrors(withLinks("```md\n[x](nope/)\n```\n\n`[y](nope/)`"), { knownPaths: known }), []);
+  // Without knownPaths every root-relative link is unknown (the safe default).
+  assert.equal(bodyErrors(withLinks("[a](/posts/llm-kaise-bolela/)")).length, 1);
+  // Raw HTML the page tests would judge as markup is rejected; harmless tags pass.
+  assert.deepEqual(bodyErrors(withLinks('<a href="about/">x</a>')), ["HTML टैग <a> मत लिखीं — ओकर Markdown रूप बरतीं"]);
+  assert.deepEqual(bodyErrors(withLinks("<h4>चार</h4>")), ["HTML टैग <h4> मत लिखीं — ओकर Markdown रूप बरतीं"]);
+  assert.deepEqual(bodyErrors(withLinks('<img src="https://example.com/a.png">')), ["HTML टैग <img> मत लिखीं — ओकर Markdown रूप बरतीं"]);
+  assert.deepEqual(bodyErrors(withLinks("<div>\n<script>x()</script>\n</div>")), ["HTML टैग <script> मत लिखीं — ओकर Markdown रूप बरतीं"]);
+  assert.deepEqual(bodyErrors(withLinks("एक<br>दू <kbd>Ctrl</kbd> <!-- टिप्पणी --> `<a href>`")), []);
+  // Front matter words tests/dist-pages.test.js bans from every page.
+  assert.deepEqual(messages(run({ title: "Lorem ipsum" })), ['title:"Lorem" शब्द साइट पर रोकल बा — दूसरा शब्द लिखीं']);
+  assert.deepEqual(messages(run({ summary_en: "How follower counts lie" })), ['summary_en:"follower" शब्द साइट पर रोकल बा — दूसरा शब्द लिखीं']);
+  assert.deepEqual(messages(run({ title_en: "Coming soon: AI" })), ['title_en:"Coming soon" शब्द साइट पर रोकल बा — दूसरा शब्द लिखीं']);
+  assert.deepEqual(run({ title: "Lorem", summary: "" }, "x", { draft: true }), []);
+  // Exported for the image upload, which builds the image path from the slug.
+  assert.ok(SLUG.test("dry-run-post") && !SLUG.test("My Slug") && !SLUG.test("-x-"));
+  assert.ok(isValidSlug("abc") && !isValidSlug("ab") && !isValidSlug("a".repeat(61)) && !isValidSlug("My Slug"));
+  assert.deepEqual(collectLinks(lexer("[a](/posts/x/) ![b](/images/s/a.webp)\n\n> ![c](rel.png)")), [
+    { href: "/posts/x/", image: false },
+    { href: "/images/s/a.webp", image: true },
+    { href: "rel.png", image: true },
+  ]);
+  assert.deepEqual(SITE_PAGES, ["/", "/posts/", "/about/", "/feed.xml"]);
   assert.deepEqual(hints({ body: `## एक\n${BHO}\n## In English\n${EN}`, lexer }), ["2 से कम ## खंड: ToC ना बनी"]);
   assert.deepEqual(hints({ body: BODY, lexer }), []);
   // hints() reads the lexer too: fenced `##` lines are not sections.

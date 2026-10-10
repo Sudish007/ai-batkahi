@@ -13,7 +13,7 @@ import { createClient, GitHubError, scrub } from "./lib/github.js";
 import { createStore } from "./lib/store.js";
 import { postSlugFromName, nextPostPath, imageFileName, imagePath, imageMarkdownPath, todayIST } from "./lib/paths.js";
 import { classifyRun, describeLatest } from "./lib/run-status.js";
-import { validatePost, hints } from "./lib/validate.js";
+import { validatePost, hints, isValidSlug, collectLinks, SITE_PAGES } from "./lib/validate.js";
 import { renderPreviewHtml } from "./lib/preview.js";
 import { processImage } from "./lib/image.js";
 
@@ -35,6 +35,8 @@ const state = {
   editing: null,
   dirty: false,
   blobs: new Map(),
+  imageDirs: new Map(), // "/images/<dir>" -> ["/images/<dir>/<file>", …] as listed from the repo
+  uploadQueue: Promise.resolve(), // image uploads run one after another (one dialog)
   autosaveTimer: 0,
   previewTimer: 0,
   slugTouched: false,
@@ -137,6 +139,8 @@ async function signIn(event) {
 }
 
 function signOut() {
+  // Edits of the last 3 s have not been autosaved yet; keep them for the restore banner.
+  if (state.dirty && !$("editor").hidden) saveLocal();
   store.clear();
   clearInterval(state.pollTimer);
   state.files = [];
@@ -553,9 +557,13 @@ function applyMd(kind) {
   }
 }
 
-function insertAtCaret(text) {
+// Insert at a selection remembered BEFORE a dialog opened: when a modal dialog
+// closes, Chromium hands focus back to the textarea with its caret reset to 0
+// (the link dialog is immune because applyMd captures s/e first; this is the
+// same for images).
+function insertAt(text, s, e) {
   const ta = $("f-body");
-  const { selectionStart: s, selectionEnd: e, value } = ta;
+  const { value } = ta;
   const before = s > 0 && value[s - 1] !== "\n" ? "\n\n" : "";
   const after = value[e] && value[e] !== "\n" ? "\n\n" : "\n";
   ta.setRangeText(`${before}${text}${after}`, s, e, "end");
@@ -564,9 +572,16 @@ function insertAtCaret(text) {
 }
 
 /* ---------- editor: images ---------- */
+// One #image-dialog serves every upload, so uploads are queued: each file gets
+// its own alt prompt and its own Markdown line, in the order they were given.
+function enqueueUploads(list) {
+  for (const f of list) state.uploadQueue = state.uploadQueue.then(() => uploadImage(f));
+}
+
 function askImage(info) {
   return new Promise((resolve) => {
     const dlg = $("image-dialog");
+    if (dlg.open) throw new Error("छवि के dialog पहिले से खुला बा");
     const alt = $("image-alt");
     const deco = $("image-decorative");
     const err = $("image-error");
@@ -587,9 +602,14 @@ function askImage(info) {
 }
 
 async function uploadImage(file) {
+  // The caret as it is when this upload starts (for a queued file: right after
+  // the previous one's line), before the dialog can reset it.
+  const ta = $("f-body");
+  const at = [ta.selectionStart, ta.selectionEnd];
+  // Read now, per file: the image path is built from the slug as it is at this moment.
   const slug = $("f-slug").value.trim();
-  if (!slug) {
-    showErrors([{ field: "slug", message: "पहिले slug भरीं" }]);
+  if (!slug || !isValidSlug(slug)) {
+    showErrors([{ field: "slug", message: slug ? "slug में सिर्फ a-z, 0-9 आ -" : "पहिले slug भरीं" }]);
     $("f-slug").focus();
     return;
   }
@@ -611,7 +631,7 @@ async function uploadImage(file) {
     }
     const mdPath = imageMarkdownPath(slug, name);
     state.blobs.set(mdPath, URL.createObjectURL(img.blob));
-    insertAtCaret(`![${alt}](${mdPath})`);
+    insertAt(`![${alt}](${mdPath})`, ...at);
     log(`छवि अपलोड: ${path} (${kb} KB)`);
     schedulePreview();
   } catch (err) {
@@ -641,6 +661,41 @@ function setStep(i, stateName, text) {
   li.querySelector(".step-status").textContent = text || "";
 }
 
+// Root-relative paths that exist on the site once this post is published — what
+// tests/dist-links.test.js will resolve in dist/: every non-draft post (drafts
+// have no page) and every category one of them uses, this post and its category,
+// the fixed pages, and the images of every /images/<dir>/ the body references
+// (listed from the repository once per session; this session's uploads are in
+// state.blobs). Needs the front matter of every post; the dashboard has usually
+// fetched it already, otherwise it is fetched here.
+async function sitePaths(data, body) {
+  const unknown = state.files.filter((n) => !state.posts.has(n) || state.posts.get(n).error);
+  await pool(unknown, 6, fetchPost);
+  const paths = new Set(SITE_PAGES);
+  const active = new Set([data.category]);
+  paths.add(`/posts/${data.slug.trim()}/`);
+  for (const name of state.files) {
+    const e = state.posts.get(name);
+    if (!e || e.error || e.data.draft === "true" || e.data.draft === true) continue;
+    paths.add(`/posts/${e.slug}/`);
+    active.add(e.data.category);
+  }
+  for (const c of cfg.categories) if (active.has(c.slug)) paths.add(`/category/${c.slug}/`);
+  for (const p of state.blobs.keys()) paths.add(p);
+  const dirs = collectLinks(lexer(body))
+    .map((l) => l.href)
+    .filter((h) => /^\/images\/./.test(h))
+    .map((h) => h.slice(0, h.lastIndexOf("/")));
+  for (const dir of new Set(dirs)) {
+    if (!state.imageDirs.has(dir)) {
+      const list = await state.client.listDir(`content${dir}`);
+      state.imageDirs.set(dir, list.filter((f) => f.type === "file").map((f) => `${dir}/${f.name}`));
+    }
+    for (const p of state.imageDirs.get(dir)) paths.add(p);
+  }
+  return [...paths];
+}
+
 // `draft: true` comes from the "ड्राफ्ट सहेजीं" button; the "ड्राफ्ट (साइट पर
 // ना देखाई)" checkbox, read right now, makes a draft of whichever button was
 // pressed. Nothing here is cached from an earlier click.
@@ -657,6 +712,19 @@ async function publish({ draft = false } = {}) {
     }
   }
   const existing = state.files.map(postSlugFromName);
+  let knownPaths = [];
+  if (!isDraft) {
+    try {
+      knownPaths = await sitePaths(data, body);
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 401) {
+        saveLocal();
+        store.clear();
+        return lock(fail(err, "सूची"));
+      }
+      return showErrors([{ field: "body", message: fail(err, "छवि सूची") }]);
+    }
+  }
   const errors = validatePost({
     data,
     body,
@@ -666,6 +734,7 @@ async function publish({ draft = false } = {}) {
     countWords,
     lexer,
     categories: cfg.categories.map((c) => c.slug),
+    knownPaths,
   });
   showErrors(errors);
   if (errors.length) return;
@@ -895,7 +964,7 @@ function bindEditor() {
   const files = (ev) => (ev.dataTransfer || ev.clipboardData || {}).files;
   const body = $("f-body");
   $("f-image").addEventListener("change", (ev) => {
-    for (const f of ev.target.files) uploadImage(f);
+    enqueueUploads([...ev.target.files]);
     ev.target.value = "";
   });
   body.addEventListener("dragover", (ev) => ev.preventDefault());
@@ -903,13 +972,13 @@ function bindEditor() {
     const list = files(ev);
     if (!list || !list.length) return;
     ev.preventDefault();
-    for (const f of list) uploadImage(f);
+    enqueueUploads([...list]);
   });
   body.addEventListener("paste", (ev) => {
     const list = files(ev);
     if (!list || !list.length) return;
     ev.preventDefault();
-    for (const f of list) uploadImage(f);
+    enqueueUploads([...list]);
   });
   $("pub-close").addEventListener("click", () => $("publish-dialog").close());
   // Escape closes the dialog too, so the poll cleanup lives on the close event.
