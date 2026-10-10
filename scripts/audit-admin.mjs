@@ -754,15 +754,18 @@ async function editorBehaviour() {
   await page.waitForTimeout(300);
   const l2Restored = await page.evaluate(() => ({ body: document.getElementById("f-body").value, restoreHidden: document.getElementById("restore").hidden }));
   // Dashboard -> edit (the listing is re-fetched on the way) must show it as well.
-  await go(page, "#/");
+  // Reached by a full load (beforeunload saves the restored edits): the in-page
+  // `वापस` would run the unsaved-changes guard, whose "छोड़ दीं" drops the copy (row V).
+  await open(page, "");
   await waitDashboard(page);
+  const l2KeptAcrossLoad = await page.evaluate((k) => localStorage.getItem(k) !== null, editKey);
   await go(page, `#/edit/${edited.name}`);
   await page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
   await page.waitForTimeout(300);
   const l2ViaDash = await page.evaluate(() => !document.getElementById("restore").hidden);
   await page.click("#restore-no");
   const l2Discarded = await page.evaluate((k) => ({ key: localStorage.getItem(k), hidden: document.getElementById("restore").hidden }), editKey);
-  record("L autosave + restore (#/edit)", "editor", 1440, "light", noBannerClean && l2Saved === editedBody.length && l2Reload.hash === `#/edit/${edited.name}` && l2Reload.restore && l2Reload.bodyIsRemote === edited.body.trim().length && l2Restored.body === editedBody && l2Restored.restoreHidden && l2ViaDash && l2Discarded.key === null && l2Discarded.hidden, { noBannerClean, savedChars: l2Saved, reload: l2Reload, restored: l2Restored.body === editedBody, viaDashboard: l2ViaDash, discarded: l2Discarded });
+  record("L autosave + restore (#/edit)", "editor", 1440, "light", noBannerClean && l2Saved === editedBody.length && l2Reload.hash === `#/edit/${edited.name}` && l2Reload.restore && l2Reload.bodyIsRemote === edited.body.trim().length && l2Restored.body === editedBody && l2Restored.restoreHidden && l2KeptAcrossLoad && l2ViaDash && l2Discarded.key === null && l2Discarded.hidden, { noBannerClean, savedChars: l2Saved, reload: l2Reload, restored: l2Restored.body === editedBody, keptAcrossLoad: l2KeptAcrossLoad, viaDashboard: l2ViaDash, discarded: l2Discarded });
   await closeCtx(ctx, page, "editor-behaviour");
 }
 
@@ -834,11 +837,15 @@ async function dialogs() {
   await c.page.waitForTimeout(600);
   const vNewAfter = await snapshot(c.page);
   const vNewSaved = await c.page.evaluate(() => { const raw = localStorage.getItem("batkahi.admin.draft.new"); return raw ? JSON.parse(raw).data.title : null; });
-  // Accepting afterwards must still leave (the guard did not get stuck).
+  // Accepting afterwards must still leave (the guard did not get stuck) AND
+  // discard the autosave: reopening #/new offers no restore banner.
   c.ctx.meta.dialog = "accept";
   await c.page.click("#back");
   await waitDashboard(c.page);
-  const vNewLeft = await c.page.evaluate(() => ({ hash: location.hash, dashboard: !document.getElementById("dashboard").hidden }));
+  const vNewLeft = await c.page.evaluate(() => ({ hash: location.hash, dashboard: !document.getElementById("dashboard").hidden, draftKey: localStorage.getItem("batkahi.admin.draft.new") }));
+  await go(c.page, "#/new");
+  await waitEditor(c.page);
+  const vNewReopen = await c.page.evaluate(() => ({ restoreHidden: document.getElementById("restore").hidden, title: document.getElementById("f-title").value }));
   const newKept = JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter) && vNewBefore.hash === "#/new" && vNewAfter.editor && vNewBefore.fields["f-title"] === NEW_POST.title && vNewBefore.tags.length === NEW_POST.tags.length;
   // #/edit/<file>: change a field, then stay.
   const editedPost = REAL_POSTS[1];
@@ -855,7 +862,18 @@ async function dialogs() {
   const vEditAfter = await snapshot(c.page);
   c.ctx.meta.dialog = "accept";
   const editKept = JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter) && vEditBefore.hash === `#/edit/${editedPost.name}` && vEditAfter.editor && vEditAfter.fields["f-summary"] === editedSummary && vEditAfter.tags.includes("नया-टैग");
-  record("V unsaved guard: stay keeps edits", "editor", 1440, "light", newKept && vNewSaved === NEW_POST.title && vNewLeft.hash === "#/" && vNewLeft.dashboard && editKept, { new: { before: { ...vNewBefore, fields: Object.keys(vNewBefore.fields).length + " fields" }, unchanged: JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter), autosavedTitle: vNewSaved, thenLeft: vNewLeft }, edit: { hash: vEditAfter.hash, unchanged: JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter), summary: vEditAfter.fields["f-summary"] === editedSummary, tags: vEditAfter.tags } });
+  // Accept on #/edit: the autosave of that file is gone and reopening it shows the
+  // committed summary with no restore banner.
+  await c.page.click("#back");
+  await waitDashboard(c.page);
+  const vEditLeft = await c.page.evaluate((name) => ({ hash: location.hash, draftKey: localStorage.getItem(`batkahi.admin.draft.${name}`) }), editedPost.name);
+  await go(c.page, `#/edit/${editedPost.name}`);
+  await c.page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await c.page.waitForTimeout(300);
+  const vEditReopen = await c.page.evaluate(() => ({ restoreHidden: document.getElementById("restore").hidden, summary: document.getElementById("f-summary").value }));
+  const newDiscarded = vNewLeft.draftKey === null && vNewReopen.restoreHidden && vNewReopen.title === "";
+  const editDiscarded = vEditLeft.hash === "#/" && vEditLeft.draftKey === null && vEditReopen.restoreHidden && vEditReopen.summary === editedPost.data.summary;
+  record("V unsaved guard: stay keeps edits, discard drops the autosave", "editor", 1440, "light", newKept && vNewSaved === NEW_POST.title && vNewLeft.hash === "#/" && vNewLeft.dashboard && newDiscarded && editKept && editDiscarded, { new: { before: { ...vNewBefore, fields: Object.keys(vNewBefore.fields).length + " fields" }, unchanged: JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter), autosavedTitle: vNewSaved, thenLeft: vNewLeft, reopened: vNewReopen }, edit: { hash: vEditAfter.hash, unchanged: JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter), summary: vEditAfter.fields["f-summary"] === editedSummary, tags: vEditAfter.tags, thenLeft: vEditLeft, reopened: vEditReopen } });
   await closeCtx(c.ctx, c.page, "unsaved-guard");
 }
 

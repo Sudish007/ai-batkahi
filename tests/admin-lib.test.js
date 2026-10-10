@@ -214,8 +214,9 @@ const VALID = {
 };
 const BODY = `परिचय\n\n## पहिला खंड\n\n${BHO}\n\n## दूसरा खंड\n\n${BHO}\n\n## In English\n\n${EN}${EN}`;
 const CATS = ["samajh", "aujaar", "raasta", "khabar"];
+const lexer = (md) => new Marked(MARKED_OPTIONS).lexer(md);
 const run = (data = {}, body = BODY, extra = {}) =>
-  validatePost({ data: { ...VALID, ...data }, body, existingSlugs: ["llm-kaise-bolela"], countWords, categories: CATS, ...extra });
+  validatePost({ data: { ...VALID, ...data }, body, existingSlugs: ["llm-kaise-bolela"], countWords, lexer, categories: CATS, ...extra });
 const messages = (errs) => errs.map((e) => `${e.field}:${e.message}`);
 
 test("validate: a complete valid post has no errors; draft ignores all but title and slug", () => {
@@ -259,6 +260,8 @@ test("validate: body rules", () => {
     [`# शीर्षक\n${BODY}`, "# (h1) मत लिखीं — h2 से शुरू करीं"],
     [`शीर्षक\n===\n\n${BODY}`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
     [`${BODY}\n\nपैरा\n---\n`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
+    [`${BODY}\n\n> उद्धरण\n> ---\n`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
+    [`${BODY}\n\n- सूची\n\n  पैरा\n  ---\n`, "शीर्षक खातिर ## लिखीं (=== / --- ना)"],
     [`### छोट\n${BODY}`, "### से पहिले ## चाहीं"],
     [`## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
     [`## In English\n${EN}\n## पहिला\n${BHO}`, "In English खंड जरूरी बा (अंत में)"],
@@ -270,6 +273,19 @@ test("validate: body rules", () => {
     const errs = run({}, body).filter((e) => e.field === "body");
     assert.deepEqual(errs.map((e) => e.message), [expected], body.slice(0, 30));
   }
+  // `---` / `===` the renderer does NOT turn into a heading must pass: inside a
+  // fence (a post about front matter), under a list item or a quote (an <hr>),
+  // after a blank line (an <hr>), a table's delimiter row, a `## x` example in a fence.
+  const okBodies = [
+    `## पहिला खंड\n\n${BHO}\n\n\`\`\`yaml\n---\ntitle: x\n---\n\`\`\`\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n\`\`\`\n===\n---\n\`\`\`\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n- एक\n- दू\n---\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n> कहनाम\n---\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n---\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n| क | ख |\n|---|---|\n| 1 | 2 |\n\n## In English\n\n${EN}${EN}`,
+    `## पहिला खंड\n\n${BHO}\n\n\`\`\`md\n## उदाहरण\n\`\`\`\n\n## In English\n\n${EN}${EN}`,
+  ];
+  for (const body of okBodies) assert.deepEqual(run({}, body), [], body.slice(0, 60));
   assert.deepEqual(hints({ body: `## एक\n${BHO}\n## In English\n${EN}` }), ["2 से कम ## खंड: ToC ना बनी"]);
   assert.deepEqual(hints({ body: BODY }), []);
 });
