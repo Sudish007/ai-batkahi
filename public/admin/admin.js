@@ -24,6 +24,8 @@ const MONTHS = ["जनवरी", "फरवरी", "मार्च", "अप
 const POLL_MS = 10000;
 const MAX_POLLS = 60;
 const POSTS_DIR = "content/posts";
+// The validator's view of headings is the preview's lexer with the preview's options.
+const lexer = (md) => new Marked(MARKED_OPTIONS).lexer(md);
 
 const state = {
   token: null,
@@ -313,9 +315,18 @@ function fillForm(data, body) {
   state.tags = Array.isArray(data.tags) ? [...data.tags] : [];
   renderTags();
   $("f-draft").checked = data.draft === "true" || data.draft === true;
+  syncDraftUi();
   $("f-body").value = body || "";
   updateCounts();
   schedulePreview();
+}
+
+// The checkbox decides what gets committed, so the primary button says what it
+// will do; the separate "ड्राफ्ट सहेजीं" button is redundant while it is ticked.
+function syncDraftUi() {
+  const isDraft = $("f-draft").checked;
+  $("publish").textContent = isDraft ? "ड्राफ्ट सहेजीं" : "प्रकाशित करीं";
+  show($("save-draft"), !isDraft);
 }
 
 function renderTags() {
@@ -346,7 +357,7 @@ function updateCounts() {
   const words = countWords($("f-body").value);
   $("word-count").textContent = `${words} शब्द`;
   $("read-time").textContent = `~${readingMinutes(words, cfg.wordsPerMinute)} मिनट`;
-  show($("toc-hint"), hints({ body: $("f-body").value }).length > 0);
+  show($("toc-hint"), hints({ body: $("f-body").value, lexer }).length > 0);
 }
 
 /* ---------- editor: preview ---------- */
@@ -630,8 +641,12 @@ function setStep(i, stateName, text) {
   li.querySelector(".step-status").textContent = text || "";
 }
 
-async function publish({ draft }) {
+// `draft: true` comes from the "ड्राफ्ट सहेजीं" button; the "ड्राफ्ट (साइट पर
+// ना देखाई)" checkbox, read right now, makes a draft of whichever button was
+// pressed. Nothing here is cached from an earlier click.
+async function publish({ draft = false } = {}) {
   const data = formData();
+  const isDraft = draft || data.draft === true;
   const body = $("f-body").value.replace(/\r\n/g, "\n").trim();
   if (!state.editing) {
     // Fresh listing so numbering and the duplicate-slug check see other devices' commits.
@@ -647,9 +662,9 @@ async function publish({ draft }) {
     body,
     existingSlugs: existing,
     currentSlug: state.editing && state.editing.slug,
-    draft,
+    draft: isDraft,
     countWords,
-    lexer: (md) => new Marked(MARKED_OPTIONS).lexer(md),
+    lexer,
     categories: cfg.categories.map((c) => c.slug),
   });
   showErrors(errors);
@@ -673,14 +688,14 @@ async function publish({ draft }) {
 
   let text;
   try {
-    text = serialize({ ...data, draft }) + "\n" + body + "\n";
+    text = serialize({ ...data, draft: isDraft }) + "\n" + body + "\n";
   } catch (err) {
     setStep(0, "failed", err.message === "mixed quotes" ? "शीर्षक में एके तरह के उद्धरण राखीं" : userMessage(err));
     return;
   }
   // Drafts need only title and slug, so the label falls back to the slug.
   const label = data.title_en.trim() || slug;
-  const message = draft ? `draft: ${label} [skip ci]` : `post: ${label}`;
+  const message = isDraft ? `draft: ${label} [skip ci]` : `post: ${label}`;
   setStep(0, "running", "कमिट करत बानी");
   let result;
   try {
@@ -702,7 +717,11 @@ async function publish({ draft }) {
   const file = basename(path);
   if (!state.files.includes(file)) state.files.push(file);
   state.editing = { file, sha: contentSha, slug, locked: true };
-  state.posts.set(file, { data: { ...data, draft: draft ? "true" : "" }, body, sha: contentSha, slug });
+  state.posts.set(file, { data: { ...data, draft: isDraft ? "true" : "" }, body, sha: contentSha, slug });
+  // The form now mirrors the committed file: a draft saved by the button shows
+  // its box ticked, a published draft its box cleared.
+  $("f-draft").checked = isDraft;
+  syncDraftUi();
   $("editor-heading").textContent = `संपादन: ${data.title.trim()}`;
   $("f-slug").readOnly = true;
   $("f-slug-hint").textContent = "प्रकाशित पोस्ट के slug ना बदले";
@@ -711,7 +730,7 @@ async function publish({ draft }) {
   state.dirty = false;
   $("save-state").textContent = `कमिट · ${hhmm()}`;
 
-  if (draft) {
+  if (isDraft) {
     setStep(1, "done", "deploy नइखे (ड्राफ्ट)");
     setStep(2, "done", "deploy नइखे (ड्राफ्ट)");
     $("pub-result").textContent = "ड्राफ्ट सहेजल गइल (साइट पर ना देखाई)";
@@ -812,7 +831,10 @@ function bindEditor() {
     markDirty();
     schedulePreview();
   });
-  $("f-draft").addEventListener("change", markDirty);
+  $("f-draft").addEventListener("change", () => {
+    markDirty();
+    syncDraftUi();
+  });
   $("f-body").addEventListener("input", onBodyInput);
   const tags = $("f-tags");
   tags.addEventListener("keydown", (ev) => {
