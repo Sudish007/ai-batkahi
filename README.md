@@ -156,4 +156,12 @@ Things only the owner can do; nothing here has been done or verified by the buil
 2. Review the Bhojpuri copy of the 6 posts in `content/posts/` (they are first drafts).
 3. Decide on and buy the domain (`batkahi.ai` and `batkahi.in` were unregistered on 2026-10-05), then set `siteUrl` and `basePath` in `site.config.js` and add `public/CNAME` as described in "Moving to a custom domain later".
 4. Put the live URL (https://sudish007.github.io/ai-batkahi/ or the custom domain) in the Instagram bio.
-5. Create the fine-grained token (steps in the "Admin" section), open `/admin/`, sign in without "remember", publish a throwaway draft first, then a real post; revoke the token when done on a shared machine. Until then the admin's real publish path is untested.
+5. Create the token and publish the first post through the admin, which is live at https://sudish007.github.io/ai-batkahi/admin/ (the lock screen repeats these steps). Its real publish path is **UNTESTED** until that first real post: every browser test so far ran against a mocked GitHub API.
+   1. Open https://github.com/settings/personal-access-tokens/new.
+   2. Token name: `ai-batkahi admin`. Resource owner: `Sudish007`. Expiration: pick one; when it expires the admin shows an auth error on sign-in ("टोकन गलत बा या खतम हो गइल"), so make a new token then.
+   3. Repository access: **Only select repositories** → `Sudish007/ai-batkahi`.
+   4. Repository permissions: **Contents = Read and write**, **Actions = Read-only** (Metadata is added automatically). Nothing else.
+   5. Generate token, copy it, paste it into the field at https://sudish007.github.io/ai-batkahi/admin/ and sign in.
+   - Tick "ई डिवाइस पर याद राखीं" only on your own device. If the device is lost, revoke the token at https://github.com/settings/tokens.
+   - Publish the first post with the "ड्राफ्ट (साइट पर ना देखाई)" box ticked: that commits the file with `draft: true` and `[skip ci]`, so the pipeline is exercised without a deploy and nothing appears on the site. Open the post again, untick the box and press "प्रकाशित करीं" to publish it for real.
+   - If an Actions run fails after publishing, the admin shows the run link in the publish dialog ("CI असफल — run देखीं"): fix the post in the admin and publish again.

@@ -1,6 +1,89 @@
+# Phase 2 — admin (live 2026-10-10)
+
+`feat/admin` (9 commits, `22f593f..260e5ef`) was fast-forwarded into `main` at `260e5ef` and pushed on 2026-10-10; Pages run [38046126949](https://github.com/Sudish007/ai-batkahi/actions/runs/38046126949) (`npm ci` → `npm test` → `npm run build` → deploy) succeeded. The admin is live at https://sudish007.github.io/ai-batkahi/admin/. Live checks were run from fresh headless Microsoft Edge 155 contexts (Playwright for Python 1.55, `viewport` as stated, `device_scale_factor` 1, `reduced_motion: reduce`, no stored state); the script lives outside the repository (scratch), its 44 rows all passed.
+
+**Real GitHub publish: still UNTESTED. No token exists in this environment; in the live session below every request to `https://api.github.com` was answered by an in-memory fake (`page.route`) built from the six real `content/posts/*.md`, with the documented fake token `ghp_FAKE_OK`. Nothing was committed to GitHub by the admin.**
+
+## Pre-merge gates (run on `feat/admin` at `260e5ef`, working tree clean before and after)
+
+| Gate | Result |
+| --- | --- |
+| `npm test` | 209 tests, 209 pass, 0 fail (1.39 s after the build) |
+| `npm run build` | `admin js (admin.js + lib)` 74 374 B of 81 920; `admin/vendor/marked.esm.js` 46 345 B; `admin/admin.css` 7 465 B; `admin/index.html` 22 604 B; `styles.css` 39 062 B; `main.js` 25 977 B; largest page `posts/chhot-shahar-se-ai-career/index.html` 22 810 B |
+| `npm run dryrun` | exit 0; 6 posts / 3 active categories → 7 / 4 during the run (211 tests pass) → 6 / 3; `git status --porcelain` empty afterwards |
+| `npm run audit:admin` | 194 rows, 0 failed (one run in this step; 30 contexts, mocked GitHub) |
+| `npm run audit` | 759 rows, 0 failed (7 pages incl. `admin/`) |
+| `git grep -n -E "ghp_\|github_pat_"` | only `ghp_FAKE_OK`, `ghp_FAKE_READONLY`, `ghp_FAKE_RATE`, `ghp_FAKE_BAD` in `scripts/audit-admin.mjs` / `tests/admin-lib.test.js`, plus prose in `README.md` and this file |
+
+## Live URLs checked
+
+| URL | Result |
+| --- | --- |
+| https://sudish007.github.io/ai-batkahi/admin/ | 200, `संपादक · AI Batkahi`, `<html lang="bho">`, `<meta name="robots" content="noindex">`, CSP meta present (`default-src 'self'; connect-src 'self' https://api.github.com https://sudish007.github.io; …`) |
+| https://sudish007.github.io/ai-batkahi/ | 200, `AI Batkahi · AI के बतकही, आपन भाषा में` |
+| https://sudish007.github.io/ai-batkahi/posts/ | 200, `सब बतकही · AI Batkahi` |
+| https://sudish007.github.io/ai-batkahi/posts/llm-kaise-bolela/ | 200, `ChatGPT जइसन AI कइसे बोलेला? · AI Batkahi` |
+| https://sudish007.github.io/ai-batkahi/category/samajh/ | 200, `समझ · AI Batkahi` |
+| https://sudish007.github.io/ai-batkahi/about/ | 200, `हमरा बारे में · AI Batkahi` |
+| https://sudish007.github.io/ai-batkahi/does-not-exist-xyz/ | HTTP 404, custom page `पन्ना नइखे मिलल · AI Batkahi` |
+| https://sudish007.github.io/ai-batkahi/robots.txt | 200, `User-agent: *` / `Allow: /` / `Disallow: /ai-batkahi/admin/` / `Sitemap: …/sitemap.xml` (113 B) |
+| `sitemap.xml` (1 600 B), `feed.xml` (37 816 B), `search.json` (4 356 B) | 200 each; the string `admin` occurs 0 times in each |
+
+Zero page errors in every context; the only console error in the whole run was the 404 URL's own `Failed to load resource … 404`.
+
+### Lock screen without a token
+
+Fresh context, no storage: `#lock` visible with the password-type token field, the "ई डिवाइस पर याद राखीं" checkbox, the five-step help list (link to `github.com/settings/personal-access-tokens/new`), the "सुरक्षा के बात" and "सीमा" sections; `#dashboard`, `#editor` and `#activity` carry `hidden`, `#post-list` has 0 children, every editor field is empty, none of the six post titles occurs in `document.body.innerText`; the sign-in button was enabled by JS. Opening `/admin/#/new` and `/admin/#/edit/02-llm-kaise-bolela.md` directly shows the same lock screen (editor hidden, fields empty). **0 requests** were made to `api.github.com` without a token. No console or page errors.
+
+### Admin absent from the public surface
+
+Home, `/posts/`, `/posts/llm-kaise-bolela/`, `/about/`: no `href` containing `admin` among 32 / 29 / 27 / 20 links, the string `/admin` occurs 0 times in the served HTML (footer and command-palette markup included). `sitemap.xml`, `feed.xml`, `search.json`: 0 mentions. `robots.txt` has `Disallow: /ai-batkahi/admin/`. (As noted in the README, the Disallow only matters on a custom domain; the `noindex` meta applies today.)
+
+### No regression on public pages
+
+`document.documentElement.scrollWidth <= clientWidth` at 320×640 on all 14 live HTML pages (home, `/posts/`, `/about/`, 3 categories, 6 posts, the 404 URL and `/admin/` lock screen) in light (no storage, `data-theme` null) and dark (stored `theme=dark`, `data-theme="dark"`): every page 320 / 320. OS-dark emulation (`color_scheme: dark`) with empty storage on `/`, the post and `/admin/`: `data-theme` null, body `rgb(250, 246, 239)`, one `meta[name=theme-color]` `#FAF6EF`, `localStorage.length` 0 → light.
+
+### Mocked sign-in against the live bundle (1440×900, light)
+
+`ghp_FAKE_OK` typed into the live lock screen → `GET /repos/Sudish007/ai-batkahi` (fake: `permissions.push` true) → `GET …/contents/content/posts` → six `GET …/contents/content/posts/<file>` → `GET …/actions/workflows/pages.yml/runs` → dashboard with the six real posts newest-first (title, `title_en`, `2026-10-08 · <category> · प्रकाशित`, `संपादन` → `#/edit/<file>`, `देखीं` → `https://sudish007.github.io/ai-batkahi/posts/<slug>/`), `6 बतकही · 0 ड्राफ्ट`, deploy strip `आखिरी deploy (साइट बनावल): सफल · 3 मिनट पहिले run (Actions चलाव)`; token in `sessionStorage` only, field cleared, not in the URL. `संपादन` on `02-llm-kaise-bolela.md` → heading `संपादन: ChatGPT जइसन AI कइसे बोलेला?`, every field equal to the file (slug `llm-kaise-bolela` read-only, date `2026-10-08`, category `samajh`, tags `LLM, ChatGPT, भाषा मॉडल, अनुमान`, body 4 461 chars, `893 शब्द`); the preview iframe (`srcdoc`, `lang="bho"`, `body.page-post`) loaded the LIVE `https://sudish007.github.io/ai-batkahi/styles.css` (`link.sheet` non-null, body `rgb(250, 246, 239)`, h1 in Tiro Devanagari Hindi) and rendered h2 ids `section-1 … section-6, in-english-heading` — the same ids the deployed post page carries — with 18 paragraphs and the `section.in-english[lang=en]`. `प्रकाशित करीं` on the unchanged post → **0 validation errors**, publish dialog for `content/posts/02-llm-kaise-bolela.md`, one `PUT` to the fake with the file's previous sha, `branch: main`, message `post: How does an AI like ChatGPT talk?`, decoded body byte-equal to the file after trim → step 1 `commit daabe7a` (fake sha) → `GET …/actions/runs` (fake: completed/success for that sha) → step 2 `सफल`, step 3 `https://sudish007.github.io/ai-batkahi/posts/llm-kaise-bolela/`, `लाइव बा`. 12 requests in the session, all answered by the fake, none unmocked; the fake token never appeared in the DOM, console, URL or activity log; 0 page errors, 0 console errors.
+
+## Live bytes (identity encoding, equal to `dist/`)
+
+| Asset | Bytes |
+| --- | --- |
+| `admin/` (`index.html`) | 22 604 |
+| `admin/admin.js` | 40 768 |
+| `admin/lib/*.js` (13 files) | 33 606 (→ admin JS budget line 74 374 of 81 920) |
+| `admin/vendor/marked.esm.js` | 46 345 |
+| `admin/admin.css` | 7 465 |
+| `styles.css` / `main.js` | 39 062 / 25 977 (admin page measure 22 604 + 39 062 + 25 977 = 87 643 of 153 600) |
+| `robots.txt` | 113 |
+
+## Screenshots (live, viewport-only, light, `docs/screenshots/`)
+
+Captured from the deployed `/admin/`; the dashboard and editor shots come from the mocked session above (fake GitHub API, fake token `ghp_FAKE_OK`, no real token exists):
+
+- `admin-lock-390x844.png` (390×844, 144 175 B) — lock screen, no token
+- `admin-lock-1440x900.png` (1440×900, 228 593 B) — lock screen, no token
+- `admin-dashboard-1440x900.png` (1440×900, 250 438 B) — six real posts listed from the fake
+- `admin-editor-1440x900.png` (1440×900, 227 286 B) — `02-llm-kaise-bolela.md` open; the fields grid is above the fold, the body and preview panes below it at this height
+
+Each was inspected: Devanagari matras intact, no overflow, controls aligned; nothing needed fixing.
+
+## Not verified
+
+- A real publish, update, delete or image commit against GitHub (no token exists; the Contents API, its `sha` handling and the `409` path were exercised only against the fake).
+- Real Actions-run polling after a commit (the fake returned `completed/success` on the first poll; queued → in_progress timing, the 10-minute cap and a real failure were seen only in the local audit's fake).
+- Token expiry / revocation behaviour against the real API (401 mapping was tested against the fake only).
+- Firefox and Safari; the old-browser notice; `QuotaExceededError`; the image-overwrite `confirm`.
+
+The deploy of this docs commit itself is recorded in the final step report (commit hash and run id), not here.
+
+---
+
 # v2 Phase 2 — admin (local, 2026-10-09)
 
-Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gzip) on `127.0.0.1`; Chromium driven by Playwright 1.64 loaded from `PW_PATH`. Not deployed.
+Branch `feat/admin`, built with Node 24.16 and served by `scripts/serve.mjs` (gzip) on `127.0.0.1`; Chromium driven by Playwright 1.64 loaded from `PW_PATH`. Merged into `main` and deployed on 2026-10-10 (see the live section above).
 
 **Real GitHub publish: UNTESTED — no token exists; every GitHub call in the audit is mocked. First real use should be a throwaway draft.**
 
