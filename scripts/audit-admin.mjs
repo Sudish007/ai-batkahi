@@ -727,8 +727,67 @@ async function editorBehaviour() {
   const nm = imgPath && imgPath.match(nameRe);
   const ext = nm ? nm[2] : null;
   const mdRe = /!\[परीक्षण\]\(\/images\/dry-run-post\/\d{8}-photo-test\.(webp|jpg)\)/;
-  const mOk = pngDims.width === 2000 && pngDims.height === 1200 && /^1600×960, \d+ KB/.test(imgInfo) && !!nm && imgPut && imgPut.status === 201 && imgCommit && imgCommit.message.startsWith("image: ") && imgCommit.message.includes("[skip ci]") && imgCommit.message === `image: ${imgPath.split("/").pop()} for dry-run-post [skip ci]` && decodedSize && decodedSize.width === 1600 && decodedSize.height === 960 && mdRe.test(m.body) && m.previewImgSrc && m.previewImgSrc.startsWith("blob:") && !m.dialogOpen && fake.runs.length === 0;
-  record("M image", "editor", 1440, "light", mOk, { sourcePng: pngDims, imgInfo, imgPath, ext, bytes: imgFile && imgFile.content.length, decodedSize, message: imgCommit && imgCommit.message, inserted: (m.body.match(mdRe) || [null])[0], previewImgSrc: m.previewImgSrc && m.previewImgSrc.slice(0, 5), runsCreated: fake.runs.length });
+  // The line lands where the caret was (the end), not at offset 0 (Chromium
+  // resets the caret when the alt dialog closes; the upload remembers it).
+  const mInserted = (m.body.match(mdRe) || [null])[0];
+  const mAtCaret = !!mInserted && m.body.trimEnd().endsWith(mInserted) && m.body.startsWith(FIXTURE_BODY);
+  const mOk = pngDims.width === 2000 && pngDims.height === 1200 && /^1600×960, \d+ KB/.test(imgInfo) && !!nm && imgPut && imgPut.status === 201 && imgCommit && imgCommit.message.startsWith("image: ") && imgCommit.message.includes("[skip ci]") && imgCommit.message === `image: ${imgPath.split("/").pop()} for dry-run-post [skip ci]` && decodedSize && decodedSize.width === 1600 && decodedSize.height === 960 && mAtCaret && m.previewImgSrc && m.previewImgSrc.startsWith("blob:") && !m.dialogOpen && fake.runs.length === 0;
+  record("M image", "editor", 1440, "light", mOk, { sourcePng: pngDims, imgInfo, imgPath, ext, bytes: imgFile && imgFile.content.length, decodedSize, message: imgCommit && imgCommit.message, inserted: mInserted, atCaret: mAtCaret, previewImgSrc: m.previewImgSrc && m.previewImgSrc.slice(0, 5), runsCreated: fake.runs.length });
+
+  // M2: two files dropped at once are uploaded one after the other (one alt
+  // dialog each, in order) -> two PUTs under content/images/<slug>/ and two
+  // Markdown lines in the same order (pass 5: only the last file was uploaded).
+  const imagesBefore = fake.images.length;
+  const putsBeforeDrop = fake.puts.length;
+  const activityBefore = (await activity(page)).filter((l) => l.includes("छवि अपलोड")).length;
+  await page.evaluate(() => { const t = document.getElementById("f-body"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); });
+  const dropData = await page.evaluateHandle((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bytes], "pehla.png", { type: "image/png" }));
+    dt.items.add(new File([bytes], "dusra.png", { type: "image/png" }));
+    return dt;
+  }, PNG_1x1.toString("base64"));
+  await page.dispatchEvent("#f-body", "drop", { dataTransfer: dropData });
+  await page.waitForFunction(() => document.getElementById("image-dialog").open, null, { timeout: 10000 });
+  const drop1Info = await page.textContent("#image-info");
+  await page.fill("#image-alt", "पहिला");
+  await page.click('#image-dialog button[value="ok"]');
+  await page.waitForFunction(() => /!\[पहिला\]\(\/images\//.test(document.getElementById("f-body").value), null, { timeout: 10000 });
+  // The second file's dialog opens only after the first upload has finished.
+  await page.waitForFunction(() => document.getElementById("image-dialog").open, null, { timeout: 10000 });
+  const drop2Info = await page.textContent("#image-info");
+  await page.fill("#image-alt", "दूसरा");
+  await page.click('#image-dialog button[value="ok"]');
+  await page.waitForFunction(() => /!\[दूसरा\]\(\/images\//.test(document.getElementById("f-body").value), null, { timeout: 10000 });
+  await page.waitForTimeout(500);
+  const dropped = fake.images.slice(imagesBefore);
+  const dropPuts = fake.puts.slice(putsBeforeDrop);
+  const m2 = await page.evaluate(() => ({ body: document.getElementById("f-body").value, dialogOpen: document.getElementById("image-dialog").open }));
+  const firstMd = m2.body.match(/!\[पहिला\]\((\/images\/dry-run-post\/\d{8}-pehla\.(webp|jpg))\)/);
+  const secondMd = m2.body.match(/!\[दूसरा\]\((\/images\/dry-run-post\/\d{8}-dusra\.(webp|jpg))\)/);
+  const uploads = (await activity(page)).filter((l) => l.includes("छवि अपलोड")).length - activityBefore;
+  // Both lines sit at the end of the body (the caret was there when the drop
+  // happened), first then second — not at offset 0, where Chromium puts the
+  // caret when a modal dialog hands focus back to the textarea.
+  const inOrderAtEnd = !!firstMd && !!secondMd && m2.body.indexOf(firstMd[0]) < m2.body.indexOf(secondMd[0]) && m2.body.indexOf(firstMd[0]) > m2.body.indexOf("## In English") && m2.body.trimEnd().endsWith(secondMd[0]);
+  const m2Ok = dropped.length === 2 && /^content\/images\/dry-run-post\/\d{8}-pehla\.(webp|jpg)$/.test(dropped[0]) && /^content\/images\/dry-run-post\/\d{8}-dusra\.(webp|jpg)$/.test(dropped[1]) && dropPuts.length === 2 && dropPuts.every((p) => p.status === 201 && p.message.includes("[skip ci]")) && `content${firstMd[1]}` === dropped[0] && `content${secondMd[1]}` === dropped[1] && inOrderAtEnd && /^1×1, \d+ KB/.test(drop1Info) && /^1×1, \d+ KB/.test(drop2Info) && !m2.dialogOpen && uploads === 2 && fake.runs.length === 0;
+  record("M2 multi-file drop: sequential uploads in order", "editor", 1440, "light", m2Ok, { dropped, puts: dropPuts.map((p) => ({ path: p.path, status: p.status })), inserted: [firstMd && firstMd[0], secondMd && secondMd[0]], inOrderAtEnd, bodyTail: m2.body.slice(-140), dialogInfos: [drop1Info, drop2Info], activityLines: uploads, runsCreated: fake.runs.length });
+
+  // M3: an image is never committed under an invalid slug (pass 5: `My Slug`
+  // produced PUT content/images/My Slug/…); the slug is checked before the resize.
+  const putsBeforeBad = fake.puts.length;
+  await page.fill("#f-slug", "My Slug");
+  await page.setInputFiles("#f-image", { name: "bad.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await page.waitForTimeout(800);
+  const m3 = await page.evaluate(() => ({
+    slugError: { hidden: document.getElementById("f-slug-error").hidden, text: document.getElementById("f-slug-error").textContent },
+    listed: [...document.querySelectorAll("#errors li")].map((li) => li.textContent),
+    dialogOpen: document.getElementById("image-dialog").open,
+    focused: document.activeElement && document.activeElement.id,
+  }));
+  record("M3 image upload rejects an invalid slug", "editor", 1440, "light", !m3.slugError.hidden && m3.slugError.text === "slug में सिर्फ a-z, 0-9 आ -" && m3.listed.includes("slug में सिर्फ a-z, 0-9 आ -") && !m3.dialogOpen && fake.puts.length === putsBeforeBad && m3.focused === "f-slug", { ...m3, newPuts: fake.puts.length - putsBeforeBad });
+  await page.fill("#f-slug", NEW_POST.slug);
 
   // L2: autosave + restore for an EXISTING post (#/edit/<file>) across a reload,
   // and the dashboard -> edit path; the banner must not depend on fetch timing.
@@ -875,6 +934,135 @@ async function dialogs() {
   const editDiscarded = vEditLeft.hash === "#/" && vEditLeft.draftKey === null && vEditReopen.restoreHidden && vEditReopen.summary === editedPost.data.summary;
   record("V unsaved guard: stay keeps edits, discard drops the autosave", "editor", 1440, "light", newKept && vNewSaved === NEW_POST.title && vNewLeft.hash === "#/" && vNewLeft.dashboard && newDiscarded && editKept && editDiscarded, { new: { before: { ...vNewBefore, fields: Object.keys(vNewBefore.fields).length + " fields" }, unchanged: JSON.stringify(vNewBefore) === JSON.stringify(vNewAfter), autosavedTitle: vNewSaved, thenLeft: vNewLeft, reopened: vNewReopen }, edit: { hash: vEditAfter.hash, unchanged: JSON.stringify(vEditBefore) === JSON.stringify(vEditAfter), summary: vEditAfter.fields["f-summary"] === editedSummary, tags: vEditAfter.tags, thenLeft: vEditLeft, reopened: vEditReopen } });
   await closeCtx(c.ctx, c.page, "unsaved-guard");
+}
+
+// Bodies the dist tests reject must be rejected in the UI before the commit
+// (pass 5: a `## -> ####` jump and a relative link both committed and then
+// failed CI). Also: images known from the repository listing, links to drafts,
+// the sign-out autosave flush and external images in the preview.
+async function validatorParity() {
+  const errorsShown = (page) => page.evaluate(() => ({
+    listed: [...document.querySelectorAll("#errors li")].map((li) => li.textContent),
+    bodyError: { hidden: document.getElementById("f-body-error").hidden, text: document.getElementById("f-body-error").textContent },
+    dialogOpen: document.getElementById("publish-dialog").open,
+  }));
+  // Click publish and wait for either the error list or a new commit. The list
+  // is emptied first: publish() awaits the listing before it re-renders it.
+  const tryPublish = async (page, fake, body) => {
+    await page.fill("#f-body", body);
+    await page.evaluate(() => document.getElementById("errors").replaceChildren());
+    const commitsBefore = fake.commits.length;
+    await page.click("#publish");
+    const t0 = Date.now();
+    while (Date.now() - t0 < 10000) {
+      if (fake.commits.length > commitsBefore) break;
+      if (await page.evaluate(() => document.querySelectorAll("#errors li").length > 0)) break;
+      await sleep(100);
+    }
+    await page.waitForTimeout(200);
+    return { ...(await errorsShown(page)), committed: fake.commits.length - commitsBefore };
+  };
+  const PARITY_POST = { ...NEW_POST, title: "समता के जाँच", title_en: "Parity post", slug: "parity-post", category: "samajh" };
+  const BHO2 = BHO.repeat(2);
+  const EN2 = `${EN25} ${EN25}`;
+  const withMiddle = (middle) => `परिचय।\n\n## पहिला खंड\n\n${BHO2}\n\n${middle}\n\n## दूसरा खंड\n\n${BHO2}\n\n## In English\n\n${EN2}`;
+
+  // W: a new post — depth jump, relative link, unknown slug, missing image,
+  // category without posts, raw HTML: each rejected with its Bhojpuri message
+  // and no commit; then a body with links the site resolves is committed.
+  const a = await newCtx({ width: 1440, token: TOKEN_OK });
+  await a.ctx.route("https://example.com/**", (route) => route.fulfill({ status: 200, headers: { "Content-Type": "image/png" }, body: PNG_1x1 }));
+  await open(a.page, "#/new");
+  await waitEditor(a.page);
+  await fillPost(a.page, PARITY_POST);
+  await a.page.evaluate(() => { const t = document.getElementById("f-body"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); });
+  await a.page.setInputFiles("#f-image", { name: "pic.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await a.page.waitForFunction(() => document.getElementById("image-dialog").open, null, { timeout: 10000 });
+  await a.page.fill("#image-alt", "चित्र");
+  await a.page.click('#image-dialog button[value="ok"]');
+  await a.page.waitForFunction(() => /!\[चित्र\]\(\/images\/parity-post\//.test(document.getElementById("f-body").value), null, { timeout: 10000 });
+  const uploadedMd = (await a.page.inputValue("#f-body")).match(/!\[चित्र\]\(\/images\/parity-post\/[^)]+\)/)[0];
+  const cases = [
+    ["## -> ####", withMiddle("#### चार"), "## के बाद #### नइखे चलेला — ### लगाईं"],
+    ["#### under In English", `${withMiddle("")}\n\n#### Four\n\n${EN2}`, "## के बाद #### नइखे चलेला — ### लगाईं"],
+    ["relative link", withMiddle("[x](about/)"), "लिंक / से शुरू करीं (जइसे /posts/<slug>/) या पूरा https:// URL दीं: about/"],
+    ["unknown slug", withMiddle("[x](/posts/typo/)"), "ई लिंक साइट पर नइखे मिलत: /posts/typo/ — मौजूद बतकही के /posts/<slug>/, विषय के /category/<slug>/ या पूरा https:// URL दीं"],
+    ["missing image", withMiddle("![x](/images/parity-post/missing.webp)"), "ई छवि साइट पर नइखे मिलत: /images/parity-post/missing.webp — छवि बटन से अपलोड करीं"],
+    ["category without posts", withMiddle("[x](/category/khabar/)"), "ई लिंक साइट पर नइखे मिलत: /category/khabar/ — मौजूद बतकही के /posts/<slug>/, विषय के /category/<slug>/ या पूरा https:// URL दीं"],
+    ["raw HTML", withMiddle('<a href="about/">x</a>'), "HTML टैग <a> मत लिखीं — ओकर Markdown रूप बरतीं"],
+  ];
+  const wResults = [];
+  for (const [label, body, message] of cases) {
+    const r = await tryPublish(a.page, a.fake, body);
+    wResults.push({ label, ok: r.listed.includes(message) && !r.bodyError.hidden && r.bodyError.text === message && !r.dialogOpen && r.committed === 0, listed: r.listed, committed: r.committed });
+  }
+  record("W validator parity: CI-failing bodies rejected before the commit", "editor", 1440, "light", wResults.every((r) => r.ok), wResults);
+  // W2: links the site resolves (an existing post with and without fragment, a
+  // fixed page, this post's own slug, the category this post makes active, the
+  // image uploaded above, an external link, ## -> ### -> ####) are committed.
+  await a.page.selectOption("#f-category", "khabar");
+  const good = withMiddle(`[a](/posts/${REAL_POSTS[1].slug}/) [b](/posts/${REAL_POSTS[1].slug}/#x) [c](/about/) [d](/posts/parity-post/) [e](/category/khabar/) [f](https://example.com/x)\n\n### तीन\n\n#### चार\n\n${uploadedMd}`);
+  const w2 = await tryPublish(a.page, a.fake, good);
+  const w2Commit = a.fake.commits[a.fake.commits.length - 1];
+  const w2Parsed = w2.committed === 1 && w2Commit.decoded ? parse(w2Commit.decoded) : null;
+  record("W2 validator parity: resolvable links are committed", "editor", 1440, "light", w2.committed === 1 && w2.listed.length === 0 && w2.dialogOpen && w2Commit.path === "content/posts/07-parity-post.md" && w2Commit.message === "post: Parity post" && !!w2Parsed && w2Parsed.body.trim() === good.trim() && w2Parsed.data.category === "khabar", { committed: w2.committed, listed: w2.listed, path: w2Commit && w2Commit.path, message: w2Commit && w2Commit.message, bodyUnchanged: !!w2Parsed && w2Parsed.body.trim() === good.trim() });
+  await a.page.click("#pub-close");
+  // X: an external image renders in the preview (CSP img-src https:), like on the site.
+  await a.page.fill("#f-body", `${withMiddle("![बाहरी](https://example.com/a.png)")}`);
+  await a.page.waitForFunction(() => { const d = document.getElementById("preview").contentDocument; const img = d && d.querySelector('img[src="https://example.com/a.png"]'); return img && img.complete; }, null, { timeout: 5000 }).catch(() => {});
+  const x = await a.page.evaluate(() => {
+    const d = document.getElementById("preview").contentDocument;
+    const img = d && d.querySelector('img[src="https://example.com/a.png"]');
+    return { found: !!img, complete: img ? img.complete : null, naturalWidth: img ? img.naturalWidth : null, cspImg: (window.__csp || []).filter((v) => v.startsWith("img-src")) };
+  });
+  record("X preview shows external https images", "editor", 1440, "light", x.found && x.complete && x.naturalWidth === 1 && x.cspImg.length === 0, x);
+  await closeCtx(a.ctx, a.page, "validator-parity");
+
+  // Y: an existing post — an image already in the repository (listed via the
+  // Contents API, not uploaded this session) is accepted, one that is not is
+  // rejected, and a link to a draft (no page) is rejected.
+  const b = await newCtx({ width: 1440, token: TOKEN_OK });
+  const target = REAL_POSTS[1]; // 02-llm-kaise-bolela.md
+  b.fake.files.set(`content/images/${target.slug}/purana.webp`, { content: PNG_1x1, sha: sha1(PNG_1x1) });
+  const draftText = `---\ndraft: true\ntitle: ड्राफ्ट\ntitle_en: Draft x\ndate: 2026-10-09\ncategory: samajh\ntags: [x]\nsummary: s\nsummary_en: s\n---\n\nबाद में।\n`;
+  b.fake.files.set("content/posts/09-draft-x.md", { content: Buffer.from(draftText, "utf8"), sha: sha1(Buffer.from(draftText, "utf8")) });
+  await open(b.page, `#/edit/${target.name}`);
+  await b.page.waitForFunction(() => !document.getElementById("editor").hidden && document.getElementById("f-slug").value !== "", null, { timeout: 10000 });
+  await b.page.waitForTimeout(300);
+  const base = target.body.trim();
+  const yMissing = await tryPublish(b.page, b.fake, `${base}\n\n![x](/images/${target.slug}/nahi.webp)\n`);
+  const yDraft = await tryPublish(b.page, b.fake, `${base}\n\n[x](/posts/draft-x/)\n`);
+  // The image goes into the Bhojpuri part (before In English), like an author would place it.
+  const yGoodBody = base.replace(/\n## In English/, `\n![पुरान](/images/${target.slug}/purana.webp)\n\n## In English`);
+  const yGood = await tryPublish(b.page, b.fake, yGoodBody);
+  const yCommit = b.fake.commits[b.fake.commits.length - 1];
+  const yPut = b.fake.puts[b.fake.puts.length - 1];
+  const yOk = yMissing.committed === 0 && yMissing.listed.includes(`ई छवि साइट पर नइखे मिलत: /images/${target.slug}/nahi.webp — छवि बटन से अपलोड करीं`) && yDraft.committed === 0 && yDraft.listed.some((l) => l.startsWith("ई लिंक साइट पर नइखे मिलत: /posts/draft-x/")) && yGood.committed === 1 && yGood.listed.length === 0 && yCommit.path === `content/posts/${target.name}` && yPut.status === 200 && parse(yCommit.decoded).body.trim() === yGoodBody.trim();
+  record("Y validator parity: repository images and draft links", "editor", 1440, "light", yOk, { missing: { committed: yMissing.committed, listed: yMissing.listed }, draft: { committed: yDraft.committed, listed: yDraft.listed }, good: { committed: yGood.committed, listed: yGood.listed, path: yCommit && yCommit.path, status: yPut && yPut.status } });
+  await b.page.click("#pub-close");
+  await closeCtx(b.ctx, b.page, "validator-parity-edit");
+
+  // Z: signing out within 3 s of an edit keeps it (autosave flushed) and the
+  // next session offers it back. #signout sits in the dashboard header, which
+  // is hidden while the editor is open, so the button is invoked from script.
+  const c = await newCtx({ width: 1440, token: TOKEN_OK });
+  await open(c.page, "#/new");
+  await waitEditor(c.page);
+  await c.page.fill("#f-title", "अधूरा शीर्षक");
+  await c.page.evaluate(() => document.getElementById("signout").click());
+  await c.page.waitForFunction(() => !document.getElementById("lock").hidden, null, { timeout: 3000 });
+  const zSaved = await c.page.evaluate(() => { const raw = localStorage.getItem("batkahi.admin.draft.new"); return raw ? JSON.parse(raw).data.title : null; });
+  const zStores = await c.page.evaluate((k) => ({ session: sessionStorage.getItem(k), local: localStorage.getItem(k) }), TOKEN_KEY);
+  await signIn(c.page, TOKEN_OK);
+  await waitDashboard(c.page);
+  await go(c.page, "#/new");
+  await waitEditor(c.page);
+  const zBanner = await c.page.evaluate(() => !document.getElementById("restore").hidden);
+  await c.page.click("#restore-yes");
+  await c.page.waitForTimeout(300);
+  const zTitle = await c.page.inputValue("#f-title");
+  record("Z sign-out flushes the autosave", "editor", 1440, "light", zSaved === "अधूरा शीर्षक" && zStores.session === null && zStores.local === null && zBanner && zTitle === "अधूरा शीर्षक", { savedTitle: zSaved, tokenCleared: zStores, bannerAfterSignIn: zBanner, restoredTitle: zTitle });
+  await closeCtx(c.ctx, c.page, "signout-flush");
 }
 
 async function publishFlows() {
@@ -1088,7 +1276,7 @@ BASE = server.origin + config.basePath;
 ADMIN = BASE + "admin/";
 console.log("Auditing " + ADMIN + " (GitHub mocked; real publish path UNTESTED)");
 browser = await chromium.launch({ headless: true });
-const STEPS = { lock, prepaintDark, signInFlows, dashboard, editorLayout, editorBehaviour, dialogs, publishFlows, screenshots };
+const STEPS = { lock, prepaintDark, signInFlows, dashboard, editorLayout, editorBehaviour, dialogs, validatorParity, publishFlows, screenshots };
 const only = process.argv.slice(2);
 try {
   for (const [name, fn] of Object.entries(STEPS)) {

@@ -23,7 +23,9 @@ test("admin page: noindex, no canonical, CSP meta with the PREPAINT hash", () =>
   assert.ok(csp[1].includes("connect-src 'self' https://api.github.com https://sudish007.github.io"));
   assert.ok(csp[1].includes("style-src 'self'"));
   assert.ok(csp[1].includes("form-action 'self'"));
-  assert.ok(csp[1].includes("img-src 'self' data: blob: https://raw.githubusercontent.com"));
+  // https: covers raw.githubusercontent.com (committed images in the preview) and
+  // external images the build renders; scripts stay 'self' + the one hash.
+  assert.ok(csp[1].includes("img-src 'self' data: blob: https:;"));
   assert.ok(csp[1].includes("object-src 'none'"));
   assert.ok(csp[1].includes("base-uri 'none'"));
   assert.ok(csp[1].includes("frame-src 'self' blob:"));

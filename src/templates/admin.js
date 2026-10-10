@@ -30,7 +30,9 @@ export function adminPage({ categories }) {
   const siteHost = new URL(config.siteUrl).host;
   const csp =
     `default-src 'self'; connect-src 'self' https://api.github.com ${siteOrigin}; ` +
-    "img-src 'self' data: blob: https://raw.githubusercontent.com; style-src 'self'; " +
+    // https: so the srcdoc preview (which inherits this policy) shows external
+    // images exactly as the build renders them, besides raw.githubusercontent.com.
+    "img-src 'self' data: blob: https:; style-src 'self'; " +
     `script-src 'self' 'sha256-${hash}'; frame-src 'self' blob:; object-src 'none'; ` +
     "base-uri 'none'; form-action 'self'";
 
