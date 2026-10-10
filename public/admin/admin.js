@@ -649,6 +649,7 @@ async function publish({ draft }) {
     currentSlug: state.editing && state.editing.slug,
     draft,
     countWords,
+    lexer: (md) => new Marked(MARKED_OPTIONS).lexer(md),
     categories: cfg.categories.map((c) => c.slug),
   });
   showErrors(errors);
@@ -918,6 +919,8 @@ async function route() {
   const leavingEditor = currentHash.startsWith("#/new") || currentHash.startsWith("#/edit/");
   const entering = hash.startsWith("#/new") || hash.startsWith("#/edit/");
   if (leavingEditor && !entering && state.dirty) {
+    // Saved before the prompt so "stay" is lossless even if the 3 s autosave
+    // has not fired yet.
     saveLocal();
     if (!confirm("असहेजल बदलाव बा। छोड़ दीं?")) {
       // Put the editor's hash back WITHOUT a hashchange: assigning location.hash
@@ -925,6 +928,9 @@ async function route() {
       history.replaceState(null, "", currentHash);
       return;
     }
+    // "छोड़ दीं" means discard: drop that copy too, or the next open of this
+    // post would offer the discarded edits back through the restore banner.
+    localStorage.removeItem(draftKey());
     state.dirty = false;
   }
   currentHash = hash;

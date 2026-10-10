@@ -1,11 +1,27 @@
 // Post validation (design 7.7). Returns [{ field, message }] in field order so
 // the editor can list them and link each to its control. Imports nothing;
-// `countWords` is passed in (the copied reading-time.js).
+// `countWords` (the copied reading-time.js) and `lexer` (Marked's, with the
+// preview's options) are passed in.
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const INSTAGRAM = /^https:\/\/www\.instagram\.com\//;
 const IN_ENGLISH = /^##\s+In English\s*$/im;
-const SETEXT = /^(?!\s*$).+\n(=+|-+)[ \t]*$/m;
+const ATX = /^ {0,3}#/;
+
+// Heading tokens whose source is not `#…`, i.e. a setext underline (=== / ---)
+// under a paragraph. Walks list items and block quotes too; the lexer already
+// knows that `---` inside a fence, under a list item or a quote is not a heading.
+function setextHeadings(tokens, out = []) {
+  for (const t of tokens) {
+    if (t.type === "heading") {
+      if (!ATX.test(t.raw)) out.push(t);
+      continue;
+    }
+    if (t.items) setextHeadings(t.items, out);
+    if (t.tokens) setextHeadings(t.tokens, out);
+  }
+  return out;
+}
 
 function realDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -17,7 +33,7 @@ function h2Headings(text) {
   return [...String(text).matchAll(/^##\s+(.*)$/gm)].map((m) => m[1].trim());
 }
 
-export function validatePost({ data, body, existingSlugs = [], currentSlug = null, draft = false, countWords, categories = null }) {
+export function validatePost({ data, body, existingSlugs = [], currentSlug = null, draft = false, countWords, lexer, categories = null }) {
   const errors = [];
   const push = (field, message) => errors.push({ field, message });
   const str = (k) => String(data[k] ?? "").trim();
@@ -57,9 +73,11 @@ export function validatePost({ data, body, existingSlugs = [], currentSlug = nul
 
   const text = String(body ?? "").replace(/\r\n/g, "\n");
   if (/^#\s/m.test(text)) push("body", "# (h1) मत लिखीं — h2 से शुरू करीं");
-  // A setext underline (=== / ---) under a text line renders an h1/h2 that the
-  // `##` rules above cannot see; the build's one-h1 and ToC tests would then fail.
-  if (SETEXT.test(text)) push("body", "शीर्षक खातिर ## लिखीं (=== / --- ना)");
+  // A setext underline (=== / ---) under a paragraph renders an h1/h2 that the
+  // `##` rules above cannot see; the build's one-h1 and ToC tests would then
+  // fail. Decided by the same lexer the preview renders with, so a `---` that
+  // the build would NOT turn into a heading is not rejected here either.
+  if (setextHeadings(lexer(text)).length) push("body", "शीर्षक खातिर ## लिखीं (=== / --- ना)");
   const firstH2 = text.search(/^##\s/m);
   const firstH3 = text.search(/^###\s/m);
   if (firstH3 !== -1 && (firstH2 === -1 || firstH3 < firstH2)) push("body", "### से पहिले ## चाहीं");
